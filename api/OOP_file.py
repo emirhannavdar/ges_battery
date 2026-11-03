@@ -7,9 +7,11 @@ from pydantic import BaseModel
 from datetime import datetime, timezone, timedelta
 from api.config import EPIAS_BASE_URI, VISUAL_CROSSING_BASE_URI, VISUAL_CROSSING_API_KEY
 
+from error import DomainError, ExternalServiceError, AuthenticationError
+
 T = TypeVar("T")
 
-class RestApiEpias(BaseModel, Generic[T]):
+class RestApi(BaseModel, Generic[T]):
     success : bool
     data: Optional[T] = None
     timestamp: datetime = datetime.now(timezone(timedelta(hours=3)))
@@ -26,8 +28,8 @@ class RestApiEpias(BaseModel, Generic[T]):
 
 
 class EpiasTGTToken(BaseModel):
-    username: str
-    password: str
+    username: str = ""
+    password: str = ""
 
 
 class OOP_Epias():
@@ -62,22 +64,23 @@ class OOP_Epias():
             token = response.text.strip()
 
             if not token.startswith("TGT-"):
-                raise ValueError("EPİAŞ geçerli bir TGT döndürmedi.")
+                raise ExternalServiceError("EPİAŞ geçerli bir TGT döndürmedi.")
 
             self.token = token
             return self.token
 
         except requests.exceptions.RequestException as e:
-            error_res = RestApiEpias.error(message=str(e), code=502)
-            raise HTTPException(status_code=502, detail=jsonable_encoder(error_res))
+            status_code = e.response.status_code if e.response is not None else None
+            raise ExternalServiceError(message=f"Epiaş servis hatası: {str(e)}",error_code=status_code)
 
     def post_PTF(self, startDate: str, endDate: str):
         try:
             if not self.token:
-                raise HTTPException(
-                    status_code=401,
-                    detail="Önce TGT token alınmalı"
-                )
+                raise AuthenticationError("İşlem yapabilmek için önce TGT token alınız")
+
+            if startDate > endDate:
+                raise DomainError("Başlangıç değeri bitiş değerinden büyük olamaz.")
+
             url = (self.base_url[:-1] + "/v1/markets/dam/data/mcp")
 
             headers = {
@@ -98,21 +101,23 @@ class OOP_Epias():
                 timeout=30
             )
 
+            response_data = response.json()
+            items_list = response_data.get("items", [])
+
+            if not items_list:
+                raise DomainError("Başlangıç günü olarak bugün'ü girmelisiniz. Eğer saat 14:00'ı geçmişse bitiş olarak bir sonraki günü girebilirsiniz.")
+
             response.raise_for_status()
             return response.json()
 
         except requests.exceptions.RequestException as e:
             status_code = e.response.status_code if e.response is not None else None
-            error_res = RestApiEpias.error(message=str(e), code=status_code)
-            raise HTTPException(status_code=status_code, detail=jsonable_encoder(error_res))
+            raise ExternalServiceError(message=f"Epiaş servis hatası: {str(e)}",error_code=status_code)
 
     def post_KPTF(self, startDate: str):
         try:
             if not self.token:
-                raise HTTPException(
-                    status_code=401,
-                    detail="Önce TGT token alınmalı"
-                )
+                raise AuthenticationError("İşlem yapabilmek için önce TGT token alınız")
 
             url = (
                 self.base_url[:-1] + "/v1/markets/dam/data/interim-mcp"
@@ -135,37 +140,26 @@ class OOP_Epias():
                 timeout=30
             )
 
+            response_data = response.json()
+            items = response_data.get("items", [])
+
+            if not items:
+                raise DomainError("Eğer saat 14:00'ı geçmediyse başlangıç olarak bugün'ü girmelisiniz.")
+
             response.raise_for_status()
             return response.json()
 
         except requests.exceptions.RequestException as e:
             status_code = e.response.status_code if e.response is not None else None
-            error_res = RestApiEpias.error(message=str(e), code=status_code)
-            raise HTTPException(status_code=status_code, detail=jsonable_encoder(error_res))
+            raise ExternalServiceError(message=f"Epiaş servis hatası: {str(e)}", error_code=status_code)
 
 
 epias_client = OOP_Epias(EPIAS_BASE_URI)
-
 def get_epias_client():
     return epias_client
 
 
 T = TypeVar("T")
-
-class RestApiWeather(BaseModel, Generic[T]):
-    success: bool
-    data: Optional[T] = None
-    timestamp: datetime = datetime.now(timezone(timedelta(hours=3)))
-    errorCode: Optional[int] = None
-    message: Optional[str] = None
-
-    @classmethod
-    def ok(cls, data: T, message: Optional[str]):
-        return cls(success=True, data=data, message=message)
-
-    @classmethod
-    def error(cls, message: str, code: Optional[int] = None):
-        return cls(success=False, data=None, errorCode=code, message=message)
 
 
 class OOP_VisualCrossing():
@@ -209,7 +203,7 @@ class OOP_VisualCrossing():
 
         except requests.exceptions.RequestException as e:
             status_code = e.response.status_code if e.response is not None else None
-            error_res = RestApiWeather.error(message=str(e), code=status_code)
+            error_res = RestApi.error(message=str(e), code=status_code)
             raise HTTPException(status_code=status_code, detail=jsonable_encoder(error_res))
 
     def get_havadurumu_full(
@@ -218,9 +212,9 @@ class OOP_VisualCrossing():
             boylam: float | None = None
     ):
         try:
-            url = {
+            url = (
                 f"{VISUAL_CROSSING_BASE_URI} + {enlem}, {boylam}"
-            }
+            )
 
             data = {
                 "key": self.token,
@@ -241,7 +235,7 @@ class OOP_VisualCrossing():
 
         except requests.exceptions.RequestException as e:
             status_code = e.response.status_code if e.response is not None else None
-            error_res = RestApiWeather.error(message=str(e), code=status_code)
+            error_res = RestApi.error(message=str(e), code=status_code)
             raise HTTPException(status_code=status_code, detail=jsonable_encoder(error_res))
 
 

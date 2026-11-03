@@ -3,12 +3,12 @@ from typing import Generic, Optional, TypeVar
 
 import requests
 
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 
 from api.config import VISUAL_CROSSING_API_KEY, VISUAL_CROSSING_BASE_URI, ENLEM, BOYLAM
-from api.epias import tz
 
 visual_crossing = APIRouter()
 
@@ -17,7 +17,7 @@ T = TypeVar("T")
 class RestApiWeather(BaseModel, Generic[T]):
     success : bool
     data: Optional[T] = None
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(tz))
+    timestamp: datetime = datetime.now(timezone(timedelta(hours=3)))
     errorCode: Optional[int] = None
     message: Optional[str] = None
 

@@ -1,8 +1,10 @@
+from email import message
+
 import requests
 
 from api.config.config import EPIAS_BASE_URI
 
-from error import (
+from api.errors.exceptions import (
     DomainError,
     ExternalServiceError,
     AuthenticationError
@@ -19,6 +21,8 @@ from api.services.epias_params import (
     get_kptf_body
 )
 
+from api.errors.request_errors import handle_request_error
+
 
 class OOP_Epias:
 
@@ -34,18 +38,6 @@ class OOP_Epias:
             )
 
         return self.token
-
-    def __handle_request_error(self, error):
-        status_code = (
-            error.response.status_code
-            if error.response is not None
-            else None
-        )
-
-        raise ExternalServiceError(
-            message=f"Epiaş servis hatası: {str(error)}",
-            error_code=status_code
-        ) from error
 
 
     def post_TGT_token(self, username: str, password: str):
@@ -71,7 +63,7 @@ class OOP_Epias:
             return self.token
 
         except requests.exceptions.RequestException as e:
-            self.__handle_request_error(e)
+            handle_request_error(e, service_name="EPİAŞ")
 
     # ortak
     def __post_epias(self, endpoint: str, body: dict):
@@ -94,10 +86,8 @@ class OOP_Epias:
         except requests.exceptions.RequestException as e:
             self.__handle_request_error(e)
 
-        except ValueError as e:
-            raise ExternalServiceError(
-                message="EPİAŞ geçerli bir JSON yanıtı döndürmedi."
-            ) from e
+        except requests.exceptions.RequestException as e:
+            handle_request_error(e, service_name="EPİAŞ")
 
 
     def post_PTF(self, startDate: str, endDate: str):

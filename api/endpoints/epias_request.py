@@ -3,7 +3,7 @@ import requests
 from fastapi import APIRouter, Query, Depends
 from api.services.epias import OOP_Epias, get_epias_client
 from api.services.epias_params import RestApi, EpiasTGTToken
-from error import ExternalServiceError, AuthenticationError
+from api.errors.exceptions import ExternalServiceError, AuthenticationError
 
 epias = APIRouter()
 

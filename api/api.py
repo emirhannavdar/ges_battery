@@ -2,13 +2,16 @@ from urllib.request import Request
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.epias import epias
-from api.visual_crossing import visual_crossing
+from api.endpoints.epias_request import epias
+from api.endpoints.visual_crossing_request import visual_crossing
 
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from error import DomainError, ExternalServiceError, AuthenticationError
-from api.OOP_file import RestApi
+
+# aşağıdaki kütüphaneler except için düzeltilicek buralar
+from api.services.epias_params import RestApi
+from api.services.weather_params import RestApi
 
 
 app = FastAPI(
@@ -49,6 +52,8 @@ async def service_error_handler(request: Request, raw: ExternalServiceError):
         status_code=raw.error_code,
         content=jsonable_encoder(error_payload)
     )
+
+
 
 @app.exception_handler(AuthenticationError)
 async def authentication_error_handler(request: Request, raw: AuthenticationError):

@@ -4,6 +4,5 @@ __pycache__/
 *.pyo
 *.pyd
 .idea/
-api/config.py
-pyproject.toml
+api/config/config.py
 uv.lock

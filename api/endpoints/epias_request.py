@@ -1,8 +1,8 @@
 import requests
 
-from fastapi import APIRouter, HTTPException, Query, Depends
-from fastapi.encoders import jsonable_encoder
-from api.OOP_file import RestApi, OOP_Epias, EpiasTGTToken, get_epias_client
+from fastapi import APIRouter, Query, Depends
+from api.services.epias import OOP_Epias, get_epias_client
+from api.services.epias_params import RestApi, EpiasTGTToken
 from error import ExternalServiceError, AuthenticationError
 
 epias = APIRouter()

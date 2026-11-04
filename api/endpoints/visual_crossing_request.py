@@ -1,8 +1,8 @@
 import requests
 
 from fastapi import APIRouter, Depends
-from api.config import ENLEM, BOYLAM
-from api.OOP_file import OOP_VisualCrossing, get_weather_client, RestApi
+from api.config.config import ENLEM, BOYLAM
+from api.services.visual_crossing import OOP_VisualCrossing, get_weather_client, RestApi
 from error import ExternalServiceError
 
 visual_crossing = APIRouter()
@@ -30,7 +30,7 @@ def weather_full(
 ):
     try:
         if client.token_varmi():
-            data = client.get_havadurumu(enlem, boylam)
+            data = client.get_havadurumu_full(enlem, boylam)
             return RestApi.ok(data=data, message="Basarili")
 
     except requests.exceptions.RequestException as e:

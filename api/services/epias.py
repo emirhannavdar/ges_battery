@@ -1,6 +1,11 @@
+<<<<<<< HEAD
 from email import message
 
 import requests
+=======
+import requests
+import logging
+>>>>>>> fix/api
 
 from api.config.config import EPIAS_BASE_URI
 
@@ -24,6 +29,12 @@ from api.services.epias_params import (
 from api.errors.request_errors import handle_request_error
 
 
+<<<<<<< HEAD
+=======
+logger = logging.getLogger(__name__)
+
+
+>>>>>>> fix/api
 class OOP_Epias:
 
     def __init__(self, base_url: str):
@@ -33,10 +44,14 @@ class OOP_Epias:
 
     def token_varmi(self):
         if not self.token:
+<<<<<<< HEAD
             raise AuthenticationError(
                 "İşlem yapabilmek için önce TGT token alınız"
             )
 
+=======
+            raise AuthenticationError("İşlem yapabilmek için önce TGT token alınız")
+>>>>>>> fix/api
         return self.token
 
 
@@ -54,12 +69,18 @@ class OOP_Epias:
             token = response.text.strip()
 
             if not token.startswith("TGT-"):
+<<<<<<< HEAD
                 raise ExternalServiceError(
                     "EPİAŞ geçerli bir TGT döndürmedi."
                 )
 
             self.token = token
 
+=======
+                raise ExternalServiceError("EPİAŞ geçerli bir TGT döndürmedi.")
+
+            self.token = token
+>>>>>>> fix/api
             return self.token
 
         except requests.exceptions.RequestException as e:
@@ -68,7 +89,10 @@ class OOP_Epias:
     # ortak
     def __post_epias(self, endpoint: str, body: dict):
         self.token_varmi()
+<<<<<<< HEAD
 
+=======
+>>>>>>> fix/api
         try:
             url = f"{self.base_url}{endpoint}"
 
@@ -80,7 +104,10 @@ class OOP_Epias:
             )
 
             response.raise_for_status()
+<<<<<<< HEAD
 
+=======
+>>>>>>> fix/api
             return response.json()
 
         except requests.exceptions.RequestException as e:
@@ -91,7 +118,10 @@ class OOP_Epias:
 
 
     def post_PTF(self, startDate: str, endDate: str):
+<<<<<<< HEAD
 
+=======
+>>>>>>> fix/api
         if startDate > endDate:
             raise DomainError(
                 "Başlangıç değeri bitiş değerinden büyük olamaz."
@@ -119,7 +149,10 @@ class OOP_Epias:
 
 
     def post_KPTF(self, startDate: str):
+<<<<<<< HEAD
 
+=======
+>>>>>>> fix/api
         body = get_kptf_body(startDate=startDate)
 
         response_data = self.__post_epias(
@@ -142,5 +175,8 @@ epias_client = OOP_Epias(EPIAS_BASE_URI)
 
 def get_epias_client():
     return epias_client
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> fix/api

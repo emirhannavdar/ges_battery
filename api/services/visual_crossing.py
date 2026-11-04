@@ -6,11 +6,18 @@ from api.config.config import VISUAL_CROSSING_BASE_URI, _VISUAL_CROSSING_API_KEY
 from api.services.weather_params import (
     get_weather_params,
     BASIC_ELEMENTS,
+<<<<<<< HEAD
     FULL_ELEMENTS,
     RestApi
 )
 
 from api.errors.exceptions import ExternalServiceError, AuthenticationError, DomainError, WeatherDataError
+=======
+    FULL_ELEMENTS
+)
+
+from api.errors.exceptions import ExternalServiceError, AuthenticationError, WeatherDataError
+>>>>>>> fix/api
 
 
 logger = logging.getLogger(__name__)
@@ -57,11 +64,19 @@ class OOP_VisualCrossing():
 
             response.raise_for_status()
 
+<<<<<<< HEAD
             logger.info("Weather api verileri çekildi.", extra={"url": url})
             return response.json()
 
         except requests.exceptions.RequestException as e:
             raise WeatherDataError("Geçersiz istek.", extra={"url": url})
+=======
+            logger.info("Weather api verileri çekildi.")
+            return response.json()
+
+        except requests.exceptions.RequestException as e:
+            raise WeatherDataError("Geçersiz istek.")
+>>>>>>> fix/api
 
     def get_havadurumu(self, enlem: float, boylam: float):
 

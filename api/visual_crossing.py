@@ -1,9 +1,16 @@
 import requests
 
 from fastapi import APIRouter, Depends
+<<<<<<< Updated upstream:api/visual_crossing.py
 from api.config import ENLEM, BOYLAM
 from api.OOP_file import OOP_VisualCrossing, get_weather_client, RestApi
 from error import ExternalServiceError
+=======
+from api.config.config import ENLEM, BOYLAM
+from api.services.visual_crossing import OOP_VisualCrossing, get_weather_client
+from api.services.weather_params import RestApi
+from api.errors.request_errors import handle_request_error
+>>>>>>> Stashed changes:api/endpoints/visual_crossing_request.py
 
 visual_crossing = APIRouter()
 

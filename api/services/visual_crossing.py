@@ -1,7 +1,5 @@
 import requests
-
-from fastapi import HTTPException
-from fastapi.encoders import jsonable_encoder
+import logging
 
 from api.config.config import VISUAL_CROSSING_BASE_URI, _VISUAL_CROSSING_API_KEY
 
@@ -12,7 +10,10 @@ from api.services.weather_params import (
     RestApi
 )
 
-from error import ExternalServiceError, AuthenticationError
+from api.errors.exceptions import ExternalServiceError, AuthenticationError, DomainError, WeatherDataError
+
+
+logger = logging.getLogger(__name__)
 
 
 class OOP_VisualCrossing():
@@ -23,17 +24,14 @@ class OOP_VisualCrossing():
 
     def __setattr__(self, name, value):
         if name == "token" and hasattr(self, "token"):
-            raise ExternalServiceError(
-                "DİKKAT: token değeri kod içinde değiştirilemez!"
-            )
+            logger.info("Weather API token değiştirilmeye çalışıldı.")
+            raise ExternalServiceError("DİKKAT: token değeri kod içinde değiştirilemez!")
 
         super().__setattr__(name, value)
 
     def token_varmi(self):
         if not self.token:
-            raise AuthenticationError(
-                "Önce VISUAL CROSSING token alınmalı"
-            )
+            raise AuthenticationError("Önce VISUAL CROSSING token alınmalı")
 
         return self.token
 
@@ -59,25 +57,11 @@ class OOP_VisualCrossing():
 
             response.raise_for_status()
 
+            logger.info("Weather api verileri çekildi.", extra={"url": url})
             return response.json()
 
         except requests.exceptions.RequestException as e:
-
-            status_code = (
-                e.response.status_code
-                if e.response is not None
-                else 502
-            )
-
-            error_res = RestApi.error(
-                message=str(e),
-                code=status_code
-            )
-
-            raise HTTPException(
-                status_code=status_code,
-                detail=jsonable_encoder(error_res)
-            ) from e
+            raise WeatherDataError("Geçersiz istek.", extra={"url": url})
 
     def get_havadurumu(self, enlem: float, boylam: float):
 

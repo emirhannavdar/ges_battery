@@ -3,7 +3,7 @@ import requests
 from fastapi import APIRouter, Depends
 from api.config.config import ENLEM, BOYLAM
 from api.services.visual_crossing import OOP_VisualCrossing, get_weather_client, RestApi
-from error import ExternalServiceError
+from api.errors.request_errors import handle_request_error
 
 visual_crossing = APIRouter()
 
@@ -19,8 +19,7 @@ def weather(
             return RestApi.ok(data=data, message="Basarili")
 
     except requests.exceptions.RequestException as e:
-        status_code = e.response.status_code if e.response is not None else None
-        raise ExternalServiceError(message={str(e)}, error_code=status_code)
+        handle_request_error(e, service_name="visual_crossing")
 
 @visual_crossing.get('/weather/full')
 def weather_full(
@@ -33,6 +32,6 @@ def weather_full(
             data = client.get_havadurumu_full(enlem, boylam)
             return RestApi.ok(data=data, message="Basarili")
 
+
     except requests.exceptions.RequestException as e:
-        status_code = e.response.status_code if e.response is not None else None
-        raise ExternalServiceError(message={str(e)}, error_code=status_code)
+        handle_request_error(e, service_name="visual_crossing")

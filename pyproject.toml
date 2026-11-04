@@ -7,4 +7,5 @@ dependencies = [
     "fastapi>=0.162.0",
     "pip>=26.3",
     "requests>=2.34.2",
+    "truststore>=0.10.5",
 ]

@@ -1,0 +1,7 @@
+from enum import IntEnum
+
+class ErrorCode(IntEnum):
+    DOMAIN_ERROR = 100
+    AUTHENTICATION_ERROR = 101
+    EXTERNAL_SERVICE_ERROR = 102
+    WEATHER_DATA_ERROR = 103

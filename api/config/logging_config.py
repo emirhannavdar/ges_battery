@@ -16,7 +16,7 @@ def setup_logging():
         backupCount=3,      # en fazla 3 log dosyası sakla
         encoding="utf-8"
     )
-    file_handler.setFormatter(formatter)  # ivim belirler
+    file_handler.setFormatter(formatter)  # bivim belirler
 
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)

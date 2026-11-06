@@ -18,7 +18,6 @@ from api.services.epias_params import (
 )
 
 from api.config.config import _TGT_URL, _PTF_ENDPOINT, _KPTF_ENDPOINT
-
 from api.errors.request_errors import handle_request_error
 
 
@@ -63,6 +62,7 @@ class OOP_Epias:
                 raise ExternalServiceError("EPİAŞ geçerli bir TGT token döndürmedi")
 
             self.token = token
+            #burda token var. self.token'a yazıyor
             return self.token
 
         except requests.exceptions.RequestException as e:
@@ -89,6 +89,10 @@ class OOP_Epias:
 
 
     def post_PTF(self, startDate: str, endDate: str):
+        print("****************************")
+        print(self.token)
+        print("****************************")
+
         if startDate > endDate:
             raise DomainError(
                 "Başlangıç değeri bitiş değerinden büyük olamaz."
@@ -104,12 +108,23 @@ class OOP_Epias:
             body=body
         )
 
-        items = response_data.get("items", [])
+        # hata verirse burayı kontrol et
+
+        if "items" not in response_data:
+            raise ExternalServiceError(
+                "EPİAŞ beklenmeyen cevap formatı döndürdü."
+            )
+
+        items = response_data["items"]
+
+        if not isinstance(items, list):
+            raise ExternalServiceError(
+                "EPİAŞ items alanı liste olmalıdır."
+            )
 
         if not items:
             raise DomainError(
-                "Başlangıç günü olarak bugün'ü girmelisiniz. "
-                "Eğer saat 14:00'ı geçmişse bitiş olarak bir sonraki günü girebilirsiniz."
+                "Belirtilen tarih aralığında veri bulunamadı."
             )
 
         return response_data
@@ -132,8 +147,7 @@ class OOP_Epias:
 
         return response_data
 
-
 __epias_client = OOP_Epias(_EPIAS_BASE_URI)
 
-def get_epias_client():
+def get_epias_client() -> OOP_Epias:
     return __epias_client

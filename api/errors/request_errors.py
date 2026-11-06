@@ -1,3 +1,5 @@
+from email import message
+
 import requests
 import logging
 
@@ -18,6 +20,10 @@ def handle_request_error(error: requests.exceptions.RequestException,service_nam
             message = f"{service_name} erişim izni hatası."
         elif status_code == 404:
             message = f"{service_name} endpoint bulunamadı."
+        elif status_code == 429:
+            message = f"{service_name} istek limitine ulaşıldı."
+        elif status_code is not None and status_code >= 500:
+            message = f"{service_name} sunucu hatası."
         else:
             message = f"{service_name} HTTP servis hatası."
 

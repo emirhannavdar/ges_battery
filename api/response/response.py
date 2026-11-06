@@ -12,7 +12,7 @@ class _RestApi(BaseModel, Generic[T]):
     message: Optional[str] = None
 
     @classmethod
-    def ok(cls, data: T, message: Optional[str]):
+    def ok(cls, data: T, message: str = "Başarılı"):
         return cls(success=True, data=data, message=message)
 
     @classmethod

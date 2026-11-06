@@ -17,6 +17,9 @@ _TGT_URL: Final[str] = os.getenv("_TGT_URL")
 _PTF_ENDPOINT = os.getenv("_PTF_ENDPOINT")
 _KPTF_ENDPOINT = os.getenv("_KPTF_ENDPOINT")
 
+_EPIAS_USERNAME: Final[str] = os.getenv("_EPIAS_USERNAME")
+_EPIAS_PASSWORD: Final[str] = os.getenv("_EPIAS_PASSWORD")
+
 
 _ENLEM: Final[float] = 39.97716018045437
 _BOYLAM: Final[float] = 32.68773218167581

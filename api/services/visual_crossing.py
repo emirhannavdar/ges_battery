@@ -10,6 +10,7 @@ from api.services.weather_params import (
 )
 
 from api.errors.exceptions import ExternalServiceError, AuthenticationError, WeatherDataError
+from api.errors.request_errors import handle_request_error
 
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,7 @@ class OOP_VisualCrossing():
         elements: str
     ):
         try:
-            url = f"{_VISUAL_CROSSING_BASE_URI}{enlem},{boylam}"
+            url = f"{self.base_url.rstrip('/')}/{enlem},{boylam}"
 
             data = get_weather_params(
                 token=self.token,
@@ -62,11 +63,19 @@ class OOP_VisualCrossing():
 
             response.raise_for_status()
 
-            logger.info("Weather api verileri çekildi.")
-            return response.json()
-
         except requests.exceptions.RequestException as e:
-            raise WeatherDataError("Geçersiz istek.")
+            raise handle_request_error(e, service_name="visual_crossing")
+
+        try:
+            result = response.json()
+        except ValueError as e:
+            logger.exception("Visual Crossing geçersiz json döndürdü.")
+
+            raise WeatherDataError("Visual crossing beklenmeyen veri frmatı döndürdü.") from e
+        logger.info("Weather API verileri çekildi")
+
+        return result
+
 
     def get_havadurumu(self, enlem: float, boylam: float):
 

@@ -1,5 +1,3 @@
-from email import message
-
 import requests
 import logging
 

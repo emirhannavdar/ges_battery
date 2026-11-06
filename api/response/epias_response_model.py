@@ -10,7 +10,6 @@ class _PTFItem(BaseModel):
 class PTFData(BaseModel):
     items: list[_PTFItem]
 
-
 class _KPTFItem(BaseModel):
     model_config = ConfigDict(extra="allow")
 

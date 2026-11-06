@@ -89,10 +89,6 @@ class OOP_Epias:
 
 
     def post_PTF(self, startDate: str, endDate: str):
-        print("****************************")
-        print(self.token)
-        print("****************************")
-
         if startDate > endDate:
             raise DomainError(
                 "Başlangıç değeri bitiş değerinden büyük olamaz."

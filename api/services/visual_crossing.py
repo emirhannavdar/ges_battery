@@ -64,7 +64,10 @@ class OOP_VisualCrossing():
             response.raise_for_status()
 
         except requests.exceptions.RequestException as e:
-            raise handle_request_error(e, service_name="visual_crossing")
+            handle_request_error(
+                e,
+                service_name="visual_crossing"
+            )
 
         try:
             result = response.json()

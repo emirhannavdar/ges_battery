@@ -9,3 +9,4 @@ api/config.py
 pyproject.toml
 uv.lock
 logs/
+.env

@@ -1,11 +1,22 @@
+from pathlib import Path
 from typing import Final
+import os
+from dotenv import load_dotenv
 
-_VISUAL_CROSSING_API_KEY: Final[str] = "BXG7DDYB8ANXG8L6SDC5ZNLNQ"
+BASE_DIR = Path(__file__).resolve().parents[2]
+load_dotenv(BASE_DIR / '.env')
 
-_VISUAL_CROSSING_BASE_URI: Final[str] = "https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/"
+_VISUAL_CROSSING_API_KEY: Final[str] = os.environ["_VISUAL_CROSSING_API_KEY"]
+_VISUAL_CROSSING_BASE_URI: Final[str] = os.environ["_VISUAL_CROSSING_BASE_URI"]
 
-EPIAS_BASE_URI: Final[str] = "https://seffaflik.epias.com.tr/electricity-service/"
+_EPIAS_BASE_URI: Final[str] = os.environ["_EPIAS_BASE_URI"]
 
 
-ENLEM: Final[float] = 39.97716018045437
-BOYLAM: Final[float] = 32.68773218167581
+_TGT_URL: Final[str] = os.getenv("_TGT_URL")
+
+_PTF_ENDPOINT = os.getenv("_PTF_ENDPOINT")
+_KPTF_ENDPOINT = os.getenv("_KPTF_ENDPOINT")
+
+
+_ENLEM: Final[float] = 39.97716018045437
+_BOYLAM: Final[float] = 32.68773218167581

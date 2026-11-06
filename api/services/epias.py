@@ -1,7 +1,7 @@
 ﻿import requests
 import logging
 
-from api.config.config import EPIAS_BASE_URI
+from api.config.config import _EPIAS_BASE_URI
 
 from api.errors.exceptions import (
     DomainError,
@@ -10,15 +10,14 @@ from api.errors.exceptions import (
 )
 
 from api.services.epias_params import (
-    TGT_URL,
-    PTF_ENDPOINT,
-    KPTF_ENDPOINT,
     get_tgt_headers,
     get_tgt_body,
     get_epias_headers,
     get_ptf_body,
     get_kptf_body
 )
+
+from api.config.config import _TGT_URL, _PTF_ENDPOINT, _KPTF_ENDPOINT
 
 from api.errors.request_errors import handle_request_error
 
@@ -29,9 +28,16 @@ logger = logging.getLogger(__name__)
 class OOP_Epias:
 
     def __init__(self, base_url: str):
-        self.base_url = base_url.rstrip("/")
+        self.base_url = base_url[:-1]
         self.token = None
         self.session = requests.Session()
+
+    def __setattr__(self, name: str, value):
+        if name == "base_url" and hasattr(self, "base_url"):
+            logger.info("EPİAŞ base url kod içinden değiştirilmeye çalışıldı.")
+            raise ExternalServiceError("DIKKAT: EPİAŞ base url kod içinden değiştirilemez.")
+
+        super().__setattr__(name, value)
 
     def __token_varmi(self):
         if not self.token:
@@ -42,7 +48,7 @@ class OOP_Epias:
     def post_TGT_token(self, username: str, password: str):
         try:
             response = self.session.post(
-                TGT_URL,
+                _TGT_URL,
                 headers=get_tgt_headers(),
                 data=get_tgt_body(username, password),
                 timeout=30
@@ -53,6 +59,7 @@ class OOP_Epias:
             token = response.text.strip()
 
             if not token.startswith("TGT-"):
+                logger.info("EPİAŞ geçerli bir TGT token döndürmedi.")
                 raise ExternalServiceError("EPİAŞ geçerli bir TGT token döndürmedi")
 
             self.token = token
@@ -93,7 +100,7 @@ class OOP_Epias:
         )
 
         response_data = self.__post_epias(
-            endpoint=PTF_ENDPOINT,
+            endpoint=_PTF_ENDPOINT,
             body=body
         )
 
@@ -112,7 +119,7 @@ class OOP_Epias:
         body = get_kptf_body(startDate=startDate)
 
         response_data = self.__post_epias(
-            endpoint=KPTF_ENDPOINT,
+            endpoint=_KPTF_ENDPOINT,
             body=body
         )
 
@@ -126,7 +133,7 @@ class OOP_Epias:
         return response_data
 
 
-__epias_client = OOP_Epias(EPIAS_BASE_URI)
+__epias_client = OOP_Epias(_EPIAS_BASE_URI)
 
 def get_epias_client():
     return __epias_client

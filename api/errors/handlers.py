@@ -9,7 +9,7 @@ async def app_error_handler(request: Request, exc: AppError):
         content={
             "success": False,
             "data": None,
-            "error_code": exc.status_code,
+            "error_code": exc.error_code,
             "message": exc.message
         }
     )

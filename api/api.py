@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.endpoints.epias_request import epias
-from api.endpoints.visual_crossing_request import visual_crossing
+from api.routers.epias_request import epias
+from api.routers.visual_crossing_request import visual_crossing
 
 from api.errors.exceptions import AppError
 from api.errors.handlers import app_error_handler

@@ -33,8 +33,9 @@ class OOP_VisualCrossing():
         
         super().__setattr__(name, value)
 
-    def _token_varmi(self):
+    def __token_varmi(self):
         if not self.token:
+            logger.info("VISUAL CROSING token yok.")
             raise AuthenticationError("Önce VISUAL CROSSING token alınmalı")
 
         return self.token
@@ -69,7 +70,7 @@ class OOP_VisualCrossing():
 
     def get_havadurumu(self, enlem: float, boylam: float):
 
-        self._token_varmi()
+        self.__token_varmi()
 
         return self.__request_weather(
             enlem=enlem,
@@ -79,7 +80,7 @@ class OOP_VisualCrossing():
 
     def get_havadurumu_full(self, enlem: float, boylam: float):
 
-        self._token_varmi()
+        self.__token_varmi()
 
         return self.__request_weather(
             enlem=enlem,

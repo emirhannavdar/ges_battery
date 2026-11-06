@@ -1,7 +1,7 @@
 ﻿import requests
 import logging
 
-from api.config.config import VISUAL_CROSSING_BASE_URI, _VISUAL_CROSSING_API_KEY
+from api.config.config import _VISUAL_CROSSING_BASE_URI, _VISUAL_CROSSING_API_KEY
 
 from api.services.weather_params import (
     get_weather_params,
@@ -20,15 +20,20 @@ class OOP_VisualCrossing():
     def __init__(self):
         self.session = requests.Session()
         self.token = _VISUAL_CROSSING_API_KEY
+        self.base_url = _VISUAL_CROSSING_BASE_URI
 
     def __setattr__(self, name, value):
         if name == "token" and hasattr(self, "token"):
             logger.info("Weather API token değiştirilmeye çalışıldı.")
             raise ExternalServiceError("DIKKAT: token değeri kod içinde değiştirilemez!")
 
+        if name == "base_url" and hasattr(self, "base_url"):
+            logger.info("Weather API base url değiştirilmeye çalışıldı")
+            raise ExternalServiceError("DIKKAT: base url kod içinde değiştirilemez!")
+        
         super().__setattr__(name, value)
 
-    def token_varmi(self):
+    def _token_varmi(self):
         if not self.token:
             raise AuthenticationError("Önce VISUAL CROSSING token alınmalı")
 
@@ -41,7 +46,7 @@ class OOP_VisualCrossing():
         elements: str
     ):
         try:
-            url = f"{VISUAL_CROSSING_BASE_URI}{enlem},{boylam}"
+            url = f"{_VISUAL_CROSSING_BASE_URI}{enlem},{boylam}"
 
             data = get_weather_params(
                 token=self.token,
@@ -64,7 +69,7 @@ class OOP_VisualCrossing():
 
     def get_havadurumu(self, enlem: float, boylam: float):
 
-        self.token_varmi()
+        self._token_varmi()
 
         return self.__request_weather(
             enlem=enlem,
@@ -74,7 +79,7 @@ class OOP_VisualCrossing():
 
     def get_havadurumu_full(self, enlem: float, boylam: float):
 
-        self.token_varmi()
+        self._token_varmi()
 
         return self.__request_weather(
             enlem=enlem,
@@ -83,7 +88,7 @@ class OOP_VisualCrossing():
         )
 
 
-weather_client = OOP_VisualCrossing()
+__weather_client = OOP_VisualCrossing()
 
 def get_weather_client():
-    return weather_client
+    return __weather_client

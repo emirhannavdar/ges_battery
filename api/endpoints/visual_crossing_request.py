@@ -20,7 +20,7 @@ def weather(
     client: OOP_VisualCrossing = Depends(get_weather_client),
 ):
     try:
-        if client.token_varmi():
+        if client._token_varmi():
             data = client.get_havadurumu(enlem, boylam)
             return RestApi.ok(data=data, message="Basarili")
 
@@ -34,7 +34,7 @@ def weather_full(
         client: OOP_VisualCrossing = Depends(get_weather_client)
 ):
     try:
-        if client.token_varmi():
+        if client._token_varmi():
             data = client.get_havadurumu_full(enlem, boylam)
             return RestApi.ok(data=data, message="Basarili")
 

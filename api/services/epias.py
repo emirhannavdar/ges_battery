@@ -33,7 +33,7 @@ class OOP_Epias:
         self.token = None
         self.session = requests.Session()
 
-    def token_varmi(self):
+    def __token_varmi(self):
         if not self.token:
             raise AuthenticationError("İşlem yapabilmek için önce TGT token alınız")
         return self.token
@@ -63,7 +63,7 @@ class OOP_Epias:
 
     # ortak
     def __post_epias(self, endpoint: str, body: dict):
-        self.token_varmi()
+        self.__token_varmi()
         try:
             url = f"{self.base_url}{endpoint}"
 
@@ -76,9 +76,6 @@ class OOP_Epias:
 
             response.raise_for_status()
             return response.json()
-
-        except requests.exceptions.RequestException as e:
-            self.__handle_request_error(e)
 
         except requests.exceptions.RequestException as e:
             handle_request_error(e, service_name="EPİAŞ")
@@ -129,8 +126,7 @@ class OOP_Epias:
         return response_data
 
 
-epias_client = OOP_Epias(EPIAS_BASE_URI)
-
+__epias_client = OOP_Epias(EPIAS_BASE_URI)
 
 def get_epias_client():
-    return epias_client
+    return __epias_client

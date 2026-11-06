@@ -28,8 +28,8 @@ async def tgt_token(raw: EpiasTGTToken, client: OOP_Epias = Depends(get_epias_cl
 
 @epias.post('/PTF')
 async def ptf(
-        startDate: str = Query(..., example="yyyy-aa-ggT00:00:00+03:00", description="Ba┼şlang─▒├ğ tarihi"),
-        endDate: str = Query(..., example="yyyy-aa-ggT00:00:00+03:00", description="Biti┼ş tarihi"),
+        startDate: str = Query(..., example="yyyy-aa-ggT00:00:00+03:00", description="Başlangıç tarihi"),
+        endDate: str = Query(..., example="yyyy-aa-ggT00:00:00+03:00", description="Bitiş tarihi"),
         client: OOP_Epias = Depends(get_epias_client)
 ):
     try:
@@ -44,7 +44,7 @@ async def ptf(
 
 @epias.post('/KPTF')
 async def kptf(
-        startDate: str = Query(..., example="yyyy-aa-ggT00:00:00+03:00", description="Ba┼şlang─▒├ğ tarhi"),
+        startDate: str = Query(..., example="yyyy-aa-ggT00:00:00+03:00", description="Başlangıç tarihi"),
         client: OOP_Epias = Depends(get_epias_client)
 ):
     try:

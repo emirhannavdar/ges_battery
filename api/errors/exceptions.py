@@ -30,7 +30,7 @@ class AuthenticationError(AppError):
             401
         )
 
-# EPİAS apisine bağlanılamaması veya geçersiz bilgi alınması
+# apiye bağlanılamaması veya geçersiz bilgi alınması
 class ExternalServiceError(AppError):
     def __init__( self,message: str, error_code: int = 102):
         super().__init__(

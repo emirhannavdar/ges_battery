@@ -15,7 +15,7 @@ from auth.auth import (
     get_current_user
 )
 
-from api.errors.exceptions import ExternalServiceError, AuthenticationError, WeatherDataError
+from api.errors.exceptions import AuthenticationError
 from api.errors.request_errors import handle_request_error
 
 

@@ -1,4 +1,6 @@
 from typing import Annotated
+
+from autobahn.wamp.gen.wamp.proto import Principal
 from fastapi import Depends, APIRouter, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 import os
@@ -12,6 +14,9 @@ from auth.auth import (
     User,
     get_current_user
 )
+
+from api.errors.exceptions import ExternalServiceError, AuthenticationError, WeatherDataError
+from api.errors.request_errors import handle_request_error
 
 
 BASE_DIR = pathlib.Path(__file__).resolve().parents[2]
@@ -34,16 +39,16 @@ auth = APIRouter()
 async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
     user_dict = users_db.get(form_data.username)
     if not user_dict:
-        raise HTTPException(400, "yanlış username veya password")
+        raise AuthenticationError("yanlış username")
     user = UserInDB(**user_dict)
     hashed_password = hash_password(form_data.password, form_data.username)
 
     if not hashed_password == user.hashed_password:
-        raise HTTPException(400, "yanlış username veya password")
+        raise AuthenticationError("yanlış password")
 
     return {
-        "access_token": user.username,
-        "token_type": "bearer"
+        "username": user.username,
+        "access_token": f"Token: {user.hashed_password}"
     }
 
 

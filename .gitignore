@@ -5,7 +5,6 @@ __pycache__/
 *.pyd
 .idea/
 api/config/
-pyproject.toml
 uv.lock
 logs/
 .env

@@ -1,7 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from api.routers.epias_request import epias
 from api.routers.visual_crossing_request import visual_crossing
+
+from auth.auth_request import auth
+from auth.auth import get_current_active_user
 
 from api.errors.exceptions import AppError
 from api.errors.handlers import app_error_handler
@@ -27,17 +30,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(
+    auth,
+    tags=["auth"],
+    include_in_schema=False
+)
+
 
 app.include_router(
     epias,
     prefix="/api/v1/epias",
-    tags=["epias"]
+    tags=["epias"],
+    dependencies=[Depends(get_current_active_user)],
+    include_in_schema=True
 )
 
 app.include_router(
     visual_crossing,
     prefix="/api/v1/visual_crossing",
-    tags=["visual_crossing"]
+    tags=["visual_crossing"],
+    dependencies=[Depends(get_current_active_user)],
+    include_in_schema=True
 )
-
 

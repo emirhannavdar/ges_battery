@@ -2,8 +2,8 @@ import hashlib
 import base64
 import uuid
 
-password = 'deneme123'
-salt = b'emirhannavdar'
+password = 'test'
+salt = b'test'
 
 t_sha = hashlib.sha512()
 t_sha.update(password.encode('utf-8') + salt)

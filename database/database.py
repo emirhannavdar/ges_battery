@@ -2,7 +2,7 @@ import os
 
 from dotenv import load_dotenv
 from sqlalchemy import text, create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 
 load_dotenv()
 
@@ -36,6 +36,18 @@ def get_user_db(db, username: str):
             FROM users
             WHERE username = :username
         """),{"username": username}
+    )
+
+    return result.mappings().first()
+
+def get_user_by_email(db: Session, email: str):
+    result = db.execute(
+        text("""
+                SELECT id, username, email
+                FROM users
+                WHERE email = :email
+            """),
+        {"email": email}
     )
 
     return result.mappings().first()

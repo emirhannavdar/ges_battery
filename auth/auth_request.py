@@ -6,10 +6,11 @@ from fastapi import Depends, APIRouter, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 from dotenv import load_dotenv
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from auth.auth import UserInDB, auth_client, User, get_current_user
 from api.errors.exceptions import AuthenticationError
-from database.database import get_db, get_user_db
+from database.database import get_db, get_user_db, get_user_by_email
 
 from hash.hash_pass import get_hashed_password
 from database.database import create_user_db
@@ -69,24 +70,54 @@ async def login(
     }
 
 
-@auth.get('/users/me')
-async def read_users_me(current_user: Annotated[User, Depends(get_current_user)]):
-    return current_user
-
 @auth.post('/sign', status_code=201)
 def sign_up(raw: SignUpForm, db: Session = Depends(get_db)):
     existing_user = get_user_db(db, raw.username)
     if existing_user:
         raise HTTPException(status_code=400, detail="Bu kullanıcı adı zaten alınmış.")
 
-    hashed_pass = get_hashed_password(raw.username, raw.password)
+    existing_email = get_user_by_email(db, raw.email)
 
-    new_user = create_user_db(
-        db=db,
-        username=raw.username,
-        full_name=raw.full_name,
-        email=raw.email,
-        hashed_password=hashed_pass,
+    if existing_email:
+        raise HTTPException(
+            status_code=409,
+            detail="Bu e-posta adresi zaten kayıtlı."
+        )
+
+    hashed_pass = get_hashed_password(raw.username, raw.password)
+    try:
+        new_user = create_user_db(
+            db=db,
+            username=raw.username,
+            full_name=raw.full_name,
+            email=raw.email,
+            hashed_password=hashed_pass,
+        )
+
+    except IntegrityError:
+        db.rollback()
+
+        logger.warning(
+            "Kullanıcı oluşturulurken benzersiz alan çakışması oluştu."
+        )
+
+        raise HTTPException(
+            status_code=409,
+            detail="Kullanıcı adı veya e-posta adresi zaten kayıtlı."
+        )
+
+    logger.info(
+        f"{raw.username} adında yeni kullanıcı oluşturuldu."
     )
 
-    return new_user
+    return {
+        "message": "Kullanıcı başarıyla oluşturuldu.",
+        "username": raw.username,
+        "email": raw.email
+    }
+
+
+@auth.get('/users/me')
+async def read_users_me(current_user: Annotated[User, Depends(get_current_user)]):
+    return current_user
+

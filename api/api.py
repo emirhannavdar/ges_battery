@@ -33,7 +33,7 @@ app.add_middleware(
 app.include_router(
     auth,
     tags=["auth"],
-    include_in_schema=False
+    include_in_schema=True
 )
 
 

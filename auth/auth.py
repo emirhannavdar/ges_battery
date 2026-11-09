@@ -31,25 +31,26 @@ def hash_password(password: str, username: str):
     hashed_password = base64.urlsafe_b64encode(t_sha.digest()).decode('utf-8')
     return hashed_password
 
-def __get_user(db, username: str):
-    if username in db:
-        user_dict = db[username]
-        return UserInDB(**user_dict)
+
+def __get_user(db, hashed_password: str):
+    clean_password = hashed_password.removeprefix("Token: ")
+
+    for user_dict in db.values():
+        if user_dict.get("hashed_password") == clean_password:
+            return UserInDB(**user_dict)
+
     return None
 
 
 def __decode_token(token):
     from auth.auth_request import users_db
     user = __get_user(users_db, token)
+
     return user
 
 
 async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
-    print(f"gelen token {token}")
-
     user = __decode_token(token)
-
-    print(f"bulunan user: {user}")
 
     if not user:
         raise HTTPException(
@@ -62,8 +63,6 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
 async def get_current_active_user(
         current_user: Annotated[User, Depends(get_current_user)]
 ):
-    print(f"get current active user çalıştı")
-
     if current_user.disabled:
         raise HTTPException(400, "Kullanıcı aktif değil")
     return current_user

@@ -9,3 +9,4 @@ pyproject.toml
 uv.lock
 logs/
 .env
+hash_test.py

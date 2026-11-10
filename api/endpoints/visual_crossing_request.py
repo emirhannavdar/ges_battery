@@ -1,6 +1,7 @@
 import requests
 
 from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
 from api.config.config import _ENLEM, _BOYLAM
 from api.services.visual_crossing import (
@@ -10,7 +11,8 @@ from api.services.visual_crossing import (
 from api.response.response import _RestApi
 from api.errors.request_errors import handle_request_error
 from api.response.weather_response_model import WeatherData
-
+from database.weather_db import save_weather_data
+from database.database import get_db
 
 visual_crossing = APIRouter()
 
@@ -22,9 +24,17 @@ def weather(
     enlem: float= _ENLEM,
     boylam: float= _BOYLAM,
     client: OOP_VisualCrossing = Depends(get_weather_client),
+    db: Session = Depends(get_db)
 ):
     try:
         data = client.get_havadurumu(enlem, boylam)
+
+        save_weather_data(
+            db=db,
+            location_id=1,
+            weather_data=data
+        )
+
         return _RestApi.ok(data=data, message="Basarili")
 
     except requests.exceptions.RequestException as e:

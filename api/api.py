@@ -1,17 +1,15 @@
 from fastapi import FastAPI, Depends, requests
 from fastapi.middleware.cors import CORSMiddleware
-from api.routers.epias_request import epias
-from api.routers.visual_crossing_request import visual_crossing
+from api.endpoints.epias_request import epias
+from api.endpoints.visual_crossing_request import visual_crossing
 
 from auth.auth_request import auth
 from auth.auth import get_current_active_user
-
 from api.errors.exceptions import AppError
 from api.errors.handlers import app_error_handler
-
 from api.config.logging_config import setup_logging
-
 from api.errors.request_errors import handle_request_error
+from api.endpoints.simulation_request import inverter_router
 
 setup_logging()         # logları uygulama çalışınca bir kez sertup eder. 1 kere çalıştırmam yeterli
 
@@ -55,6 +53,13 @@ try:
         dependencies=[Depends(get_current_active_user)],
         include_in_schema=True
     )
+
+    app.include_router(
+        inverter_router,
+        dependencies=[Depends(get_current_active_user)],
+        include_in_schema=True
+    )
+
 
 except requests.exceptions.RequestException as e:
     handle_request_error(

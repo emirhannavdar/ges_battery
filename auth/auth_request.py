@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
-from auth.auth import UserInDB, User, get_current_user, UserAuth, auth_client
+from auth.auth import UserInDB, User, get_current_user, auth_client, get_current_active_user
 from api.errors.exceptions import AuthenticationError
 from database.database import get_db, get_user_db, get_user_by_email
 
@@ -90,7 +90,12 @@ async def login(
 
 
 @auth.post('/sign', status_code=201)
-def sign_up(raw: SignUpForm, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def sign_up(
+        raw: SignUpForm,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+        active_user: User = Depends(get_current_active_user)
+):
     existing_user = get_user_db(db, raw.username)
     if existing_user:
         raise HTTPException(status_code=400, detail="Bu kullanıcı adı zaten alınmış.")
@@ -137,6 +142,9 @@ def sign_up(raw: SignUpForm, db: Session = Depends(get_db), current_user: User =
 
 
 @auth.get('/users/me')
-async def read_users_me(current_user: Annotated[User, Depends(get_current_user)]):
+async def read_users_me(
+        current_user: Annotated[User, Depends(get_current_user)],
+        active_user: User = Depends(get_current_active_user)
+):
     return current_user
 

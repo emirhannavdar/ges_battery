@@ -12,6 +12,8 @@ from api.errors.request_errors import handle_request_error
 from api.response.response import _RestApi
 from api.response.epias_response_model import PTFData, KPTFData
 from auth.auth import User, get_current_user
+from auth.auth import get_current_active_user
+
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +24,8 @@ epias = APIRouter()
 async def tgt_token(
         raw: EpiasTGTToken,
         client: OOP_Epias = Depends(get_epias_client),
-        current_user: User = Depends(get_current_user)
+        current_user: User = Depends(get_current_user),
+        active_user: User = Depends(get_current_active_user)
 ):
     if raw.username == "" or raw.password == "":
         logger.info("Kullanıcı adı veya şifre boş bırakılamaz.")
@@ -43,7 +46,8 @@ def ptf(
         startDate: str = Query(..., examples="yyyy-aa-ggT00:00:00+03:00", description="Başlangıç tarihi"),
         endDate: str = Query(..., examples="yyyy-aa-ggT00:00:00+03:00", description="Bitiş tarihi"),
         client: OOP_Epias = Depends(get_epias_client),
-        current_user: User = Depends(get_current_user)
+        current_user: User = Depends(get_current_user),
+        active_user: User = Depends(get_current_active_user)
 ):
     try:
         data = client.post_PTF(startDate, endDate)
@@ -61,7 +65,8 @@ def ptf(
 def kptf(
         startDate: str = Query(..., examples="yyyy-aa-ggT00:00:00+03:00", description="Başlangıç tarihi"),
         client: OOP_Epias = Depends(get_epias_client),
-        current_user: User = Depends(get_current_user)
+        current_user: User = Depends(get_current_user),
+        active_user: User = Depends(get_current_active_user)
 ):
     try:
         data = client.post_KPTF(startDate)

@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker, Session
 
 load_dotenv()
 
-DATABASE_URL = os.environ["DATABASE_URL"]
+DATABASE_URL = os.environ["_DATABASE_URL"]
 
 engine = create_engine(
     DATABASE_URL,

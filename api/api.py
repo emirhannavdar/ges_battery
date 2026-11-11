@@ -34,6 +34,7 @@ app.add_middleware(
 try:
     app.include_router(
         auth,
+        prefix="/auth",
         tags=["auth"],
         include_in_schema=True
     )
@@ -42,7 +43,6 @@ try:
         epias,
         prefix="/api/v1/epias",
         tags=["epias"],
-        dependencies=[Depends(get_current_active_user)],
         include_in_schema=True
     )
 
@@ -50,13 +50,11 @@ try:
         visual_crossing,
         prefix="/api/v1/visual_crossing",
         tags=["visual_crossing"],
-        dependencies=[Depends(get_current_active_user)],
         include_in_schema=True
     )
 
     app.include_router(
         inverter_router,
-        dependencies=[Depends(get_current_active_user)],
         include_in_schema=True
     )
 

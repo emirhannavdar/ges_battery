@@ -76,3 +76,6 @@ def create_user_db(db, username: str, full_name: str, email: str, hashed_passwor
     return {"username": username, "email": email, "status": "Kullanıcı başarıyla oluşturuldu"}
 
 
+
+
+

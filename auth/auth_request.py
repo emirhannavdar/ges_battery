@@ -6,9 +6,10 @@ from fastapi import Depends, APIRouter, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 from dotenv import load_dotenv
 from pydantic import BaseModel
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
-from auth.auth import UserInDB, auth_client, User, get_current_user
+from auth.auth import UserInDB, User, get_current_user, UserAuth, auth_client
 from api.errors.exceptions import AuthenticationError
 from database.database import get_db, get_user_db, get_user_by_email
 
@@ -48,7 +49,7 @@ async def login(
         raise AuthenticationError("yanlış username")
 
     user = UserInDB(**user_dict)
-    hashed_password = auth_client.hash_password(form_data.password, form_data.username)
+    hashed_password = get_hashed_password(form_data.username, form_data.password)
 
     if not hashed_password == user.hashed_password:
         sayac += 1
@@ -59,19 +60,37 @@ async def login(
 
     sayac = 0
 
+    token_data = auth_client._hash_password(form_data.username)
+
     logger.info(
         "PostgreSQL kullanıcı sorgusu tamamlandı. username= %s, fullname= %s email= %s",
         form_data.username, user_dict.full_name, user_dict.email
     )
 
+    try:
+        db.execute(
+            text("""
+                    UPDATE users 
+                    SET access_token = :access_token 
+                    WHERE username = :username
+                """),
+            {"access_token": token_data["access_token"], "username": user.username},
+        )
+        db.commit()
+
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+
     return {
-        "username": user.username,
-        "access_token": user.hashed_password
+        "access_token": token_data["access_token"],
+        "token_type": "bearer",
+        "username": user.username
     }
 
 
 @auth.post('/sign', status_code=201)
-def sign_up(raw: SignUpForm, db: Session = Depends(get_db)):
+def sign_up(raw: SignUpForm, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     existing_user = get_user_db(db, raw.username)
     if existing_user:
         raise HTTPException(status_code=400, detail="Bu kullanıcı adı zaten alınmış.")

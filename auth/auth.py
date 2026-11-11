@@ -1,9 +1,9 @@
 import logging
-import hashlib
-import base64
+import os
 import pathlib
-import requests
+import jwt
 
+from datetime import timedelta, datetime, timezone
 from typing import Annotated
 from dotenv import load_dotenv
 from fastapi import Depends, HTTPException
@@ -12,13 +12,14 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from api.errors.request_errors import handle_request_error
 from database.database import get_db
+from api.errors.exceptions import AuthenticationError, DomainError
+
 
 BASE_DIR = pathlib.Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / '.env')
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
 
 logger = logging.getLogger(__name__)
@@ -28,42 +29,44 @@ class User(BaseModel):
     username: str
     email: str | None = None
     full_name: str | None = None
+    access_token: str | None = None
     disabled: bool | None = None
 
 
 class UserInDB(User):
     hashed_password: str
+    access_token: str | None = None
 
 
 class UserAuth:
     def __init__(self):
-        pass
+        self._secret_key = os.getenv("_SECRET_KEY")
+        self._algorithm = "HS512"
 
 
-    def hash_password(self, password: str, username: str):
-        try:
-            salt = username.encode('utf-8')     # byte çevirmek gerekiyor
-            t_sha = hashlib.sha512()
-            t_sha.update(password.encode('utf-8') + salt)
-            hashed_password = base64.urlsafe_b64encode(t_sha.digest()).decode('utf-8')
-            return hashed_password
+    def _hash_password(self, username: str):
+        payload = {
+            "sub": username,
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=30)
+        }
+        jwt_token = jwt.encode(payload, self._secret_key, algorithm=self._algorithm)
 
-        except requests.exceptions.RequestException as e:
-            handle_request_error(
-                e,
-                service_name="hash-password"
-            )
+        return {
+            "username": username,
+            "access_token": jwt_token,
+            "token_type": "bearer"
+        }
 
 
-    def __get_user(self, db: Session, hashed_password: str):
+    def __get_user(self, db: Session, username: str):
         try:
             result = db.execute(
                 text("""
-                    SELECT username, full_name, email,hashed_password, disabled
+                    SELECT username, full_name, email, access_token, hashed_password, disabled
                     FROM users
-                    WHERE hashed_password = :hashed_password
+                    WHERE username = :username
                 """),
-                {"hashed_password": hashed_password}
+                {"username": username}
             )
 
             user_dict = result.mappings().first()
@@ -71,35 +74,39 @@ class UserAuth:
             if user_dict is None:
                 return None
 
-            return UserInDB(**user_dict)
+
+            return User(**user_dict)
 
 
         except SQLAlchemyError:
             logger.exception("Kullanıcı sorgusu başarısız")
             raise
 
-    def __decode_token(self,token: str,db: Session):
-        return self.__get_user(db, token)
+    def __decode_token(self,token: str) -> str | None:
+        try:
+            _secret_key = os.getenv("_SECRET_KEY")
 
+            payload = jwt.decode(token, self._secret_key, algorithms=[self._algorithm])
+
+            return payload.get("sub")
+        except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+            logger.warning("Geçersiz veya süresi dolmuş token denemesi.")
+            return None
 
 
     async def authenticate_user(self, token: str, db: Session):
-        try:
-            user = self.__decode_token(token, db)
+        username = self.__decode_token(token)
 
-            if not user:
-                raise HTTPException(
-                    status_code = 401,
-                    detail = "Not Auth",
-                    headers = {"WWW-Authenticate": "Bearer"}
-                )
-            return user
+        if not username:
+            raise AuthenticationError("geçersiz veya süresi dolmuş token.")
 
-        except requests.exceptions.RequestException as e:
-            handle_request_error(
-                e,
-                service_name="get-current-user"
-            )
+        user = self.__get_user(db, username)
+
+        if not user:
+            raise DomainError("Kullanıcı bulunamadı.")
+
+        return user
+
 
 auth_client = UserAuth()
 

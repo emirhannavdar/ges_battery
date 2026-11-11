@@ -1,10 +1,9 @@
-from fastapi import FastAPI, Depends, requests
+from fastapi import FastAPI, requests
 from fastapi.middleware.cors import CORSMiddleware
 from api.endpoints.epias_request import epias
 from api.endpoints.visual_crossing_request import visual_crossing
 
 from auth.auth_request import auth
-from auth.auth import get_current_active_user
 from api.errors.exceptions import AppError
 from api.errors.handlers import app_error_handler
 from api.config.logging_config import setup_logging
@@ -26,10 +25,13 @@ app.add_exception_handler(AppError, app_error_handler)      # hataları global y
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 try:
     app.include_router(

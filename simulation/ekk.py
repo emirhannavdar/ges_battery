@@ -11,6 +11,7 @@ class EKKReading:
     reactive_command_kvar: float
     active_power_limit_kw: float
     active_power_limit_exceeded: bool
+    active_power_command_kw: float
 
     def to_dict(self):
         return asdict(self)
@@ -30,7 +31,9 @@ class EKK:
         self,
         measured_active_power_kw: float,
         measured_reactive_power_kvar: float,
-        current_inverter_reactive_kvar: float
+        current_inverter_reactive_kvar: float,
+        available_active_power_kw: float,
+        transformer_efficiency: float= 0.99
     ) -> EKKReading:
 
         values = (
@@ -65,6 +68,21 @@ class EKK:
             > self.active_power_limit_kw
         )
 
+        if available_active_power_kw < 0:
+            raise ValueError("Kullanılabilir aktif güç negatif olamaz.")
+
+        if not 0 < transformer_efficiency <= 1:
+            raise ValueError("Trafo verimi 0 ile 1 arasında olmalıdır.")
+
+        # Şebeke tarafındaki limitin invertör AC tarafındaki karşılığı
+        max_inverter_power_kw = (
+                self.active_power_limit_kw / transformer_efficiency
+        )
+
+        # Kullanılabilir üretim daha düşükse gereksiz sınırlama yapma
+        active_command = max_inverter_power_kw
+
+
         return EKKReading(
             measured_active_power_kw=round(measured_active_power_kw, 3),
             measured_reactive_power_kvar=round(measured_reactive_power_kvar, 3),
@@ -72,5 +90,6 @@ class EKK:
             reactive_error_kvar=round(reactive_error, 3),
             reactive_command_kvar=round(reactive_command, 3),
             active_power_limit_kw=self.active_power_limit_kw,
-            active_power_limit_exceeded=limit_exceeded
+            active_power_limit_exceeded=limit_exceeded,
+            active_power_command_kw = round(active_command, 3)
         )

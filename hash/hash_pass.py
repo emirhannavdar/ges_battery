@@ -21,9 +21,7 @@ def controle_hash_password(db: Annotated[Session, Depends(get_db)], password: st
     )
     db_hashed_password = result.scalar_one_or_none()
 
-
     if not db_hashed_password:
         return False
 
-    is_valid = password_hash.verify(password, db_hashed_password)
-    return is_valid
+    return password_hash.verify(password, db_hashed_password)

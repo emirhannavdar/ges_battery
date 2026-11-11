@@ -2,21 +2,8 @@
 import logging
 
 from api.config.config import _EPIAS_BASE_URI
-
-from api.errors.exceptions import (
-    DomainError,
-    ExternalServiceError,
-    AuthenticationError
-)
-
-from api.services.epias_params import (
-    get_tgt_headers,
-    get_tgt_body,
-    get_epias_headers,
-    get_ptf_body,
-    get_kptf_body
-)
-
+from api.errors.exceptions import (DomainError,ExternalServiceError,AuthenticationError)
+from api.services.epias_params import (get_tgt_headers,get_tgt_body,get_epias_headers,get_ptf_body,get_kptf_body)
 from api.config.config import _TGT_URL, _PTF_ENDPOINT, _KPTF_ENDPOINT
 from api.errors.request_errors import handle_request_error
 
@@ -27,7 +14,7 @@ logger = logging.getLogger(__name__)
 class OOP_Epias:
 
     def __init__(self, base_url: str):
-        self.base_url = base_url[:-1]
+        self.base_url = base_url.rstrip("/")
         self.token = None
         self.session = requests.Session()
 

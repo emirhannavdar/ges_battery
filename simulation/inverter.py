@@ -67,6 +67,7 @@ class Inverter:
         self.energy_kwh = 0.0
         self.reactive_power_setpoint_kvar = 0.0
         self._last_reading = self._zero_reading()
+        self.active_power_setpoint_kw = self.config.ac_rated_kw
 
     def _zero_reading(self) -> InverterReading:
         return InverterReading(
@@ -105,6 +106,74 @@ class Inverter:
             raise ValueError("reactive power setpoint exceeds inverter kVA rating")
         self.reactive_power_setpoint_kvar = kvar
 
+    def set_active_power(self, kw: float) -> None:
+        if not isfinite(kw) or not 0 <= kw <= self.config.ac_rated_kw:
+            raise ValueError("Aktif güç setpoint'i 0 ile invertörün nominal AC gücü arasında olmalıdır.")
+
+        self.active_power_setpoint_kw = kw
+
+    def calculate_available_power(
+            self,
+            irradiance_w_m2: float,
+            cell_temperature_c: float
+    ) -> float:
+
+        # 1. Giriş değerlerini doğrula
+        if not isfinite(irradiance_w_m2):
+            raise ValueError("irradiance_w_m2 must be finite")
+
+        if not isfinite(cell_temperature_c):
+            raise ValueError("cell_temperature_c must be finite")
+
+        if irradiance_w_m2 < 0:
+            raise ValueError("irradiance must be nonnegative")
+
+        # 2. Kapalı veya arızalı invertör üretim yapamaz
+        if self.status in (
+                InverterStatus.OFF,
+                InverterStatus.FAULT
+        ):
+            return 0.0
+
+        # 3. Minimum ışınım kontrolü
+        if irradiance_w_m2 < self.config.minimum_irradiance_w_m2:
+            return 0.0
+
+        # 4. Sıcaklık etkisi
+        temperature_factor = max(
+            0.0,
+            1 + self.config.temperature_coefficient_per_c
+            * (cell_temperature_c - 25.0)
+        )
+
+        # 5. DC üretim gücü
+        dc_kw = (
+                self.config.dc_rated_kw
+                * irradiance_w_m2
+                / 1000.0
+                * temperature_factor
+        )
+
+        # 6. Reaktif güç nedeniyle oluşan aktif güç sınırı
+        q_kvar = self.reactive_power_setpoint_kvar
+
+        max_active_from_kva = sqrt(
+            max(
+                0.0,
+                self.config.apparent_rated_kva ** 2
+                - q_kvar ** 2
+            )
+        )
+
+        # 7. EKK kısıtlaması olmadan üretilebilecek AC güç
+        available_kw = min(
+            dc_kw * self.config.efficiency,
+            self.config.ac_rated_kw,
+            max_active_from_kva
+        )
+
+        return max(0.0, available_kw)
+
     def step(self, irradiance_w_m2: float, cell_temperature_c: float, dt_seconds: float = 1.0) -> InverterReading:
         for name, value in (("irradiance_w_m2", irradiance_w_m2), ("cell_temperature_c", cell_temperature_c), ("dt_seconds", dt_seconds)):
             if not isfinite(value):
@@ -123,7 +192,12 @@ class Inverter:
         dc_kw = self.config.dc_rated_kw * irradiance_w_m2 / 1000.0 * temperature_factor
         q_kvar = self.reactive_power_setpoint_kvar
         max_active_from_kva = sqrt(max(0.0, self.config.apparent_rated_kva ** 2 - q_kvar ** 2))
-        ac_kw = min(dc_kw * self.config.efficiency, self.config.ac_rated_kw, max_active_from_kva)
+        ac_kw = min(
+            dc_kw * self.config.efficiency,
+            self.config.ac_rated_kw,
+            max_active_from_kva,
+            self.active_power_setpoint_kw
+        )
         apparent_kva = sqrt(ac_kw ** 2 + q_kvar ** 2)
         current_a = apparent_kva * 1000.0 / (sqrt(3.0) * self.config.line_voltage_v)
         pf = ac_kw / apparent_kva if apparent_kva > 0 else 1.0
@@ -141,7 +215,12 @@ class Inverter:
         return self._last_reading
 
     def get_data(self) -> dict:
-        return self._last_reading.to_dict()
+        data = self._last_reading.to_dict()
+        data["active_power_setpoint_kw"] = (
+            self.active_power_setpoint_kw
+        )
+
+        return data
 
 
 if __name__ == "__main__":

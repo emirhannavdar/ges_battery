@@ -1,6 +1,8 @@
 import logging
 import os
 import pathlib
+from queue import PriorityQueue
+
 import jwt
 
 from datetime import timedelta, datetime, timezone
@@ -44,7 +46,7 @@ class UserAuth:
         self._algorithm = "HS512"
 
 
-    def _hash_password(self, username: str):
+    def _jwt_token(self, username: str):
         payload = {
             "sub": username,
             "exp": datetime.now(timezone.utc) + timedelta(minutes=30)
@@ -86,7 +88,11 @@ class UserAuth:
         try:
             _secret_key = os.getenv("_SECRET_KEY")
 
-            payload = jwt.decode(token, self._secret_key, algorithms=[self._algorithm])
+            payload = jwt.decode(
+                token,
+                self._secret_key,
+                algorithms=[self._algorithm]
+            )
 
             return payload.get("sub")
         except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
@@ -96,6 +102,8 @@ class UserAuth:
 
     async def authenticate_user(self, token: str, db: Session):
         username = self.__decode_token(token)
+
+
 
         if not username:
             raise AuthenticationError("geçersiz veya süresi dolmuş token.")

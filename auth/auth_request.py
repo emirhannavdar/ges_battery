@@ -9,6 +9,8 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
+from fastapi.responses import JSONResponse
+
 from auth.auth import UserInDB, User, get_current_user, auth_client, get_current_active_user
 from api.errors.exceptions import AuthenticationError
 from database.database import get_db, get_user_db, get_user_by_email
@@ -38,7 +40,6 @@ async def login(
         form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
         db: Annotated[Session, Depends(get_db)]
 ):
-
     user_dict = get_user_db(db, form_data.username)
     global sayac
 
@@ -46,22 +47,38 @@ async def login(
         sayac += 1
         if sayac > 5:
             logger.info(f"{sayac} kere hatalı giriş yapıldı.")
-        raise AuthenticationError("yanlış username")
+        return JSONResponse(
+            status_code=401,
+            content={
+                "error_description": "Kullanıcı bulunamadı",
+            }
+        )
 
     user = UserInDB(**user_dict)
 
-    test = controle_hash_password(db, password=form_data.password, username=form_data.username)
+    if user.disabled:
+        return JSONResponse(
+            status_code=401,
+            content={
+                "error_description": "Kullanıcı aktif değil.",
+            },
+        )
 
-    if test != True:
+    if controle_hash_password(db, password=form_data.password, username=form_data.username) != True:
         sayac += 1
         if sayac > 5:
             logger.info(f"{sayac} kere hatalı giriş yapıldı.")
 
-        raise AuthenticationError("yanlış password")
+        return JSONResponse(
+            status_code=401,
+            content={
+                "error_description": "Şifre yanlış"
+            }
+        )
 
     sayac = 0
 
-    token_data = auth_client._hash_password(form_data.username)
+    token_data = auth_client._jwt_token(form_data.username)
 
     logger.info(
         "PostgreSQL kullanıcı sorgusu tamamlandı. username= %s, fullname= %s email= %s",

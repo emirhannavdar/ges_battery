@@ -13,7 +13,7 @@ from auth.auth import UserInDB, User, get_current_user, auth_client, get_current
 from api.errors.exceptions import AuthenticationError
 from database.database import get_db, get_user_db, get_user_by_email
 
-from hash.hash_pass import get_hashed_password
+from hash.hash_pass import get_hashed_password, controle_hash_password
 from database.database import create_user_db
 
 
@@ -49,9 +49,10 @@ async def login(
         raise AuthenticationError("yanlış username")
 
     user = UserInDB(**user_dict)
-    hashed_password = get_hashed_password(form_data.username, form_data.password)
 
-    if not hashed_password == user.hashed_password:
+    test = controle_hash_password(db, password=form_data.password, username=form_data.username)
+
+    if test != True:
         sayac += 1
         if sayac > 5:
             logger.info(f"{sayac} kere hatalı giriş yapıldı.")
@@ -108,7 +109,7 @@ def sign_up(
             detail="Bu e-posta adresi zaten kayıtlı."
         )
 
-    hashed_pass = get_hashed_password(raw.username, raw.password)
+    hashed_pass = get_hashed_password(raw.password)
     try:
         new_user = create_user_db(
             db=db,

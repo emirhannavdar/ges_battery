@@ -6,7 +6,7 @@ import jwt
 from datetime import timedelta, datetime, timezone
 from typing import Annotated
 from dotenv import load_dotenv
-from fastapi import Depends, HTTPException
+from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
 from sqlalchemy import text

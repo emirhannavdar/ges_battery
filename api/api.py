@@ -16,9 +16,14 @@ app = FastAPI(
     title="Epias",
     description="Epias API",
     version="0.1.3",
-    swagger_ui_parameters={
-        "defaultModelsExpandDepth": -1
-    }
+    swagger_ui_parameters={"defaultModelsExpandDepth": -1},
+
+
+    # swagger safasını erişime kapatır
+
+    #docs_url=None,
+    #redoc_url=None,
+    #openapi_url=None,
 )
 
 app.add_exception_handler(AppError, app_error_handler)      # hataları global yakalar api de serverda kalmaz

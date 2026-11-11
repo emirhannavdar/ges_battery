@@ -8,7 +8,7 @@ from api.errors.exceptions import DomainError
 from simulation.energy_analyzer import EnergyAnalyzer
 from simulation.transformer import Transformer
 from simulation.ekk import EKK
-from auth.auth import User, get_current_user
+from auth.auth import User, get_current_user, get_current_active_user
 
 inverter_router = APIRouter(
     prefix="/inverter",
@@ -28,7 +28,8 @@ class InverterStepRequest(BaseModel):
 
 @inverter_router.post("/start")
 def start_inverter(
-        current_user: User = Depends(get_current_user)
+        current_user: User = Depends(get_current_user),
+        active_user: User = Depends(get_current_active_user)
 ):
 
     inverter.start()
@@ -43,7 +44,8 @@ def start_inverter(
 def step_inverter(
         request: InverterStepRequest,
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user)
+        current_user: User = Depends(get_current_user),
+        active_user: User = Depends(get_current_active_user)
 ):
 
     result_db = db.execute(
@@ -130,7 +132,10 @@ def step_inverter(
 
 
 @inverter_router.get("/data")
-def get_inverter_data(current_user: User = Depends(get_current_user)):
+def get_inverter_data(
+        current_user: User = Depends(get_current_user),
+        active_user: User = Depends(get_current_active_user)
+):
 
     return {
         "success": True,

@@ -13,7 +13,7 @@ from api.errors.request_errors import handle_request_error
 from api.response.weather_response_model import WeatherData
 from database.weather_db import save_weather_data
 from database.database import get_db
-from auth.auth import get_current_user, User
+from auth.auth import get_current_user, User, get_current_active_user
 
 
 visual_crossing = APIRouter()
@@ -27,8 +27,10 @@ def weather(
     boylam: float= _BOYLAM,
     client: OOP_VisualCrossing = Depends(get_weather_client),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    active_user: User = Depends(get_current_active_user)
 ):
+
     try:
         data = client.get_havadurumu(enlem, boylam)
 
@@ -51,7 +53,8 @@ def weather_full(
         enlem: float = _ENLEM,
         boylam: float = _BOYLAM,
         client: OOP_VisualCrossing = Depends(get_weather_client),
-        current_user: User = Depends(get_current_user)
+        current_user: User = Depends(get_current_user),
+        active_user: User = Depends(get_current_active_user)
 ):
     try:
         data = client.get_havadurumu_full(enlem, boylam)

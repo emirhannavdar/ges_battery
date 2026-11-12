@@ -24,4 +24,17 @@ jobs:
         run: uv sync --frozen
 
       - name: Run pytest
+        env:
+          _VISUAL_CROSSING_API_KEY: "test-api-key"
+          _VISUAL_CROSSING_BASE_URI: "test-base-url"
+          _EPIAS_BASE_URI: "test-base-url"
+          _TGT_URL: "123456"
+          _PTF_ENDPOINT: "test-endpoint"
+          _KPTF_ENDPOINT: "test-endpont"
+          _EPIAS_USERNAME: "test-value"
+          _EPIAS_PASSWORD: "test-value"
+          _HASH_PASSWORD: "test-value"
+          _DATABASE_URL: "test-value"
+          _SECRET_KEY: "test-value"
+
         run: uv run python -m pytest -v

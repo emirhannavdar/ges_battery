@@ -1,285 +1,517 @@
 
-# GES Battery | Güneş Enerjisi Veri ve Simülasyon Projesi
+# GES Battery | Solar Energy Data & Simulation Project
 
-Python ile geliştirdiğim bu projede güneş enerjisi sistemleri için ihtiyaç duyduğum veri toplama, API yönetimi ve simülasyon işlemlerini tek bir yapıda birleştiriyorum. Projede EPİAŞ üzerinden elektrik piyasası verilerini, Visual Crossing üzerinden hava durumu verilerini alıyorum. Bunun yanında inverter davranışını hesaplayan bir simülasyon modülü, kullanıcı doğrulama işlemleri ve veritabanı katmanı da bulunuyor.
+GES Battery is a Python-based project I'm developing to bring together data collection, API management, and simulation processes for solar energy systems.
 
-Projenin temel amacı farklı kaynaklardan gelen verileri düzenli bir API yapısı üzerinden erişilebilir hale getirmek ve güneş enerjisi sistemleriyle ilgili hesaplamalar için kullanılabilecek bir altyapı oluşturmak.
+The project integrates electricity market data from EPİAŞ and weather data from Visual Crossing. It also includes an inverter simulation module, user authentication, and database operations.
 
-> **Durum:** Proje geliştirilmeye devam ediyor. API, simülasyon ve test altyapısında yeni düzenlemeler yapıyorum.
+My main goal is to build a structured backend that makes data from different sources accessible through a REST API and provides a foundation for calculations and simulations related to solar energy systems.
 
-## İçindekiler
+> **Project Status:** Active development. I'm continuing to improve the API architecture, simulation modules, database operations, and automated testing infrastructure.
 
-- [Proje kapsamı](#proje-kapsamı)
-- [Kullanılan teknolojiler](#kullanılan-teknolojiler)
-- [Proje yapısı](#proje-yapısı)
-- [API ve servisler](#api-ve-servisler)
-- [İnverter simülasyonu](#inverter-simülasyonu)
-- [Kimlik doğrulama ve veritabanı](#kimlik-doğrulama-ve-veritabanı)
-- [Kurulum](#kurulum)
-- [Ortam değişkenleri](#ortam-değişkenleri)
-- [Uygulamayı çalıştırma](#uygulamayı-çalıştırma)
-- [Testler](#testler)
+## Table of Contents
+
+- [Project Overview](#project-overview)
+- [Technologies](#technologies)
+- [Project Structure](#project-structure)
+- [API and Services](#api-and-services)
+- [Inverter Simulation](#inverter-simulation)
+- [Authentication and Database](#authentication-and-database)
+- [Installation](#installation)
+- [Environment Variables](#environment-variables)
+- [Running the Application](#running-the-application)
+- [Testing](#testing)
 - [GitHub Actions](#github-actions)
-- [Geliştirme notları](#geliştirme-notları)
+- [Development Notes](#development-notes)
+- [Version History](#version-history)
 
-## Proje kapsamı
+## Project Overview
 
-Projeyi geliştirirken tek bir dosyada toplanmış API istekleri yerine, sorumlulukları ayrılmış bir yapı kullanmaya çalıştım. HTTP isteklerini karşılayan endpoint'ler, harici servislere bağlanan sınıflar, kimlik doğrulama işlemleri, veritabanı erişimi ve simülasyon kodları ayrı klasörlerde yer alıyor.
+While developing this project, I wanted to avoid keeping API requests, business logic, database operations, and calculations in the same files.
 
-Şu anda üzerinde çalıştığım başlıca alanlar:
+Instead, I organized the application into separate layers. API endpoints handle incoming HTTP requests, service classes communicate with external APIs, and database operations, authentication, and simulation logic are managed independently.
 
-- **EPİAŞ entegrasyonu:** Elektrik piyasası verilerinin servis üzerinden alınması.
-- **Visual Crossing entegrasyonu:** Konuma bağlı hava durumu ve güneş enerjisiyle ilgili meteorolojik verilerin alınması.
-- **İnverter simülasyonu:** Işınım, sıcaklık ve inverter durumuna bağlı güç hesaplamaları.
-- **Kimlik doğrulama:** JWT tabanlı erişim kontrolü ve parola hashleme.
-- **Veritabanı:** Uygulama verilerinin SQLAlchemy üzerinden yönetilmesi.
-- **Test ve CI:** Pytest testlerinin GitHub Actions üzerinde otomatik çalıştırılması.
+The project currently focuses on the following areas:
 
-## Kullanılan teknolojiler
+- **EPİAŞ Integration:** Retrieving electricity market data through external API services.
+- **Visual Crossing Integration:** Collecting weather and solar-related meteorological data based on geographical coordinates.
+- **Inverter Simulation:** Calculating inverter power output under different environmental and operating conditions.
+- **Authentication:** Managing JWT-based authentication and protected API endpoints.
+- **Database:** Managing application data through SQLAlchemy and PostgreSQL.
+- **Testing and CI:** Running automated tests with pytest and GitHub Actions.
 
-| Teknoloji | Kullanım amacı |
+The overall structure is designed to make it easier to maintain existing features and add new functionality without making unnecessary changes to unrelated parts of the project.
+
+## Technologies
+
+| Technology | Purpose |
 | --- | --- |
-| Python 3.12+ | Ana programlama dili |
-| FastAPI | REST API geliştirme |
-| Pydantic | İstek ve yanıt verilerinin doğrulanması |
-| Requests | Harici API istekleri |
-| SQLAlchemy | Veritabanı erişimi |
-| PostgreSQL | Geliştirme ortamında kullanılan ilişkisel veritabanı |
-| PyJWT | JWT işlemleri |
-| pwdlib / Argon2 | Parola hashleme |
-| pytest | Otomatik testler |
-| unittest.mock | Harici servis ve veritabanı işlemlerinin testlerde taklit edilmesi |
-| uv | Paket ve sanal ortam yönetimi |
-| GitHub Actions | Sürekli entegrasyon (CI) |
+| Python 3.12+ | Main programming language |
+| FastAPI | REST API development |
+| Pydantic | Request and response validation |
+| Requests | Communication with external APIs |
+| SQLAlchemy | Database access and management |
+| PostgreSQL | Relational database used in development |
+| PyJWT | JWT authentication |
+| pwdlib / Argon2 | Password hashing |
+| pytest | Automated testing |
+| unittest.mock | Mocking external services and database operations |
+| uv | Dependency and virtual environment management |
+| GitHub Actions | Continuous Integration (CI) |
 
-Bağımlılıkları `pyproject.toml` dosyasında tutuyorum. `uv.lock` dosyası ise bağımlılıkların tutarlı biçimde kurulmasını sağlıyor.
+Project dependencies are managed through `pyproject.toml`, while `uv.lock` is used to keep dependency installations consistent across environments.
 
-## Proje yapısı
+## Project Structure
 
 ```text
 ges_battery/
 ├── .github/
-│   └── workflows/          # GitHub Actions test iş akışı
+│   └── workflows/          # GitHub Actions workflows
 ├── api/
-│   ├── endpoints/          # HTTP endpoint'leri
-│   ├── services/           # EPİAŞ ve Visual Crossing servisleri
-│   ├── config/             # Uygulama yapılandırması
-│   ├── errors/             # Hata yönetimi
-│   └── api.py              # FastAPI uygulaması
-├── auth/                   # JWT ve kimlik doğrulama işlemleri
-├── database/               # Veritabanı bağlantısı ve veri işlemleri
-├── frontend/               # Ön yüz dosyaları
-├── hash/                   # Parola hashleme işlemleri
-├── simulation/             # İnverter simülasyonu
-├── static/                 # Statik dosyalar
+│   ├── endpoints/          # API route handlers
+│   ├── services/           # EPİAŞ and Visual Crossing services
+│   ├── config/             # Application configuration
+│   ├── errors/             # Error handling
+│   └── api.py              # FastAPI application
+├── auth/                   # JWT authentication
+├── database/               # Database connection and operations
+├── frontend/               # Frontend files
+├── hash/                   # Password hashing
+├── simulation/             # Inverter simulation
+├── static/                 # Static files
 ├── tests/
-│   ├── apis/               # API testleri
-│   └── inverter/           # İnverter testleri
+│   ├── apis/               # API tests
+│   └── inverter/           # Inverter tests
 ├── .gitignore
 ├── pyproject.toml
 ├── uv.lock
 └── README.md
 ```
 
-Klasörlerin ayrılmasındaki amaç, yeni bir endpoint veya hesaplama eklediğimde mevcut kodun tamamını değiştirmek zorunda kalmamak. Örneğin harici API'ye gönderilen isteklerin ayrıntıları servis katmanında, HTTP yanıtlarıyla ilgili işlemler ise endpoint katmanında tutuluyor.
+I separated these components to keep the code easier to maintain.
 
-## API ve servisler
+For example, when I need to change how an external API request is made, I can update the related service without having to rewrite the endpoint logic.
 
-### EPİAŞ
+Similarly, simulation calculations can be developed and tested independently of the API layer.
 
-EPİAŞ entegrasyonu üzerinden elektrik piyasasına ait verileri alıyorum. Bu bölümde TGT token alma, PTF ve KPTF verilerini sorgulama işlemleri bulunuyor.
+## API and Services
 
-| Endpoint | Metot | Açıklama |
+### EPİAŞ Integration
+
+The EPİAŞ integration is used to retrieve electricity market data.
+
+This part of the project includes TGT token management and endpoints for querying PTF and KPTF data.
+
+| Endpoint | Method | Description |
 | --- | --- | --- |
-| `/api/v1/epias/token` | `POST` | EPİAŞ için TGT token işlemi |
-| `/api/v1/epias/PTF` | `POST` | PTF verilerini sorgulama |
-| `/api/v1/epias/KPTF` | `POST` | KPTF verilerini sorgulama |
+| `/api/v1/epias/token` | `POST` | Handles the EPİAŞ TGT token operation |
+| `/api/v1/epias/PTF` | `POST` | Retrieves PTF electricity market data |
+| `/api/v1/epias/KPTF` | `POST` | Retrieves KPTF electricity market data |
 
-PTF sorgularında `startDate` ve `endDate`, KPTF sorgularında `startDate` parametresi kullanılıyor. Tarih değerleri EPİAŞ servisinin beklediği biçimde gönderilmeli.
+PTF requests use the `startDate` and `endDate` parameters, while KPTF requests use `startDate`.
 
-Servis tarafındaki işlemleri endpoint kodundan ayırdım. Böylece HTTP isteğinin nasıl oluşturulduğu, token kullanımı ve dış servis hataları gibi konular tek bir katmanda yönetilebiliyor.
+Date values must follow the format expected by the EPİAŞ service.
 
-### Visual Crossing
+#### Service Architecture
 
-Visual Crossing entegrasyonu, belirli bir enlem ve boylam için hava durumu verilerini almak amacıyla kullanılıyor.
+The EPİAŞ integration uses a dedicated service class to manage external requests.
 
-| Endpoint | Metot | Açıklama |
+The service layer handles:
+
+- Creating HTTP requests.
+- Preparing request headers and parameters.
+- Managing authentication tokens.
+- Communicating with EPİAŞ endpoints.
+- Handling external service errors.
+- Returning data to the API layer.
+
+This keeps the endpoint code focused on processing incoming requests and returning responses.
+
+### Visual Crossing Integration
+
+The Visual Crossing integration retrieves weather data for a given location using latitude and longitude.
+
+| Endpoint | Method | Description |
 | --- | --- | --- |
-| `/api/v1/visual_crossing` | `GET` | Hava durumu verilerini sorgulama |
-| `/api/v1/visual_crossing/weather/full` | `GET` | Daha ayrıntılı hava durumu verilerini sorgulama |
+| `/api/v1/visual_crossing` | `GET` | Retrieves weather data |
+| `/api/v1/visual_crossing/weather/full` | `GET` | Retrieves more detailed weather data |
 
-Örnek istek:
+Example request:
 
 ```http
 GET /api/v1/visual_crossing?enlem=39.97&boylam=32.68
 ```
 
-Dönen veriler arasında tarih, sıcaklık, bulutluluk, güneş ışınımı ve güneş enerjisi gibi alanlar bulunabiliyor. Ayrıntılı veri modelinde saatlik ölçümlere ait ek meteorolojik alanlar da yer alıyor.
+Depending on the requested data, the response can include:
 
-Hava durumu verilerini yalnızca istemciye döndürmekle kalmayıp uygun akışta veritabanına kaydetmek için de bir katman oluşturdum. Bu nedenle servis çağrılarıyla veritabanı işlemlerini ayrı ayrı test etmek önemli.
+- Date and time information.
+- Temperature.
+- Cloud coverage.
+- Solar radiation.
+- Solar energy.
+- Hourly weather measurements.
+- Additional meteorological information.
 
-### API yanıtları ve hata yönetimi
+These values are useful when working with solar energy calculations, since weather conditions directly affect the amount of energy a photovoltaic system can produce.
 
-API tarafında yanıtları ortak bir yapıda sunmak için başarı durumu, veri, zaman bilgisi ve hata açıklaması gibi alanları kullanıyorum. Harici servislerde oluşabilecek bağlantı ve HTTP hatalarını uygulama içindeki hata yönetimiyle ele almaya çalışıyorum.
+#### Weather Data Storage
 
-İsteklerin takibini kolaylaştırmak için loglama yapısı da bulunuyor. Özellikle dış servislere yapılan isteklerde ve hata durumlarında loglar hata ayıklama açısından işe yarıyor.
+The project also includes database operations for storing weather data.
 
-## İnverter simülasyonu
+I separated the database logic from the weather service so that API communication and data persistence can be handled independently.
 
-`simulation/` klasöründe inverterin farklı çalışma koşullarındaki davranışını hesaplayan kodlar bulunuyor.
+This separation is particularly useful during testing because database writes can be mocked without affecting the behavior being tested in an API endpoint.
 
-Testlerde ele aldığım başlıca durumlar:
+### API Responses and Error Handling
 
-- Kullanılabilir güç hesabı
-- Sıfır veya negatif ışınım değerleri
-- AC güç sınırı
-- DC güç hesabı
-- Sıcaklık faktörünün etkisi
-- İnverterin kapalı (`OFF`) olması
-- Arıza (`FAULT`) durumu
-- Simülasyonun adım adım ilerlemesi (`step`)
-- Minimum ışınım koşulları
-- Güç hesabının enerji durumunu beklenmedik biçimde değiştirmemesi
+I use a structured response format to keep API responses consistent.
 
-Bu modülde yalnızca normal çalışma koşullarını değil, sınır değerlerini ve inverterin üretim yapmaması gereken durumları da test ediyorum.
+The response structure includes fields such as:
 
-## Kimlik doğrulama ve veritabanı
+| Field | Description |
+| --- | --- |
+| `success` | Indicates whether the request was successful |
+| `data` | Contains the returned data |
+| `timestamp` | Time associated with the response |
+| `errorCode` | Error code when applicable |
+| `message` | Additional information about the response |
 
-API'de JWT tabanlı kimlik doğrulama kullanıyorum. Korunan endpoint'lere erişimde kullanıcı doğrulaması yapılıyor. Parolalar için düz metin saklama yerine hashleme yaklaşımı kullanılıyor.
+The project also includes centralized error-handling components for application errors and external service failures.
 
-Kimlik doğrulama bölümünde PyJWT, parola işlemlerinde ise `pwdlib` ve Argon2 desteği bulunuyor.
+Logging is used to make it easier to identify problems, especially when communicating with external services.
 
-Veritabanı işlemleri SQLAlchemy üzerinden yürütülüyor. Geliştirme ortamımda PostgreSQL kullanıyorum. Veritabanı bağlantı adresi ve gizli bilgiler doğrudan kaynak kod içine yazılmak yerine ortam değişkenlerinden okunuyor.
+## Inverter Simulation
 
-**Güvenlik notu:** `.env` dosyası, gerçek API anahtarları, veritabanı parolaları ve JWT gizli anahtarları GitHub'a gönderilmemeli. Projeyi kendi ortamında çalıştıran herkes kendi yapılandırma değerlerini kullanmalı.
+The `simulation/` directory contains the inverter simulation logic.
 
-## Kurulum
+This module is responsible for calculating inverter behavior under different operating conditions.
 
-### 1. Gereksinimler
+The simulation considers conditions such as solar irradiance, temperature, power limitations, and inverter operating states.
 
-- Python 3.12 veya üzeri
-- Git
-- `uv`
-- Veritabanına erişim gereken özellikler için yapılandırılmış PostgreSQL
-- Gerçek harici servis istekleri için ilgili API erişim bilgileri
+The main scenarios covered by the tests include:
 
-### 2. Projeyi klonlama
+- Available power calculation.
+- Zero and negative irradiance values.
+- AC power limits.
+- DC power calculations.
+- Temperature correction factors.
+- Inverter `OFF` state.
+- Inverter `FAULT` state.
+- Step-by-step simulation behavior.
+- Minimum irradiance conditions.
+- Ensuring power calculations do not unexpectedly modify stored energy state.
+
+I wanted the simulation to handle more than just normal operating conditions.
+
+For that reason, I also added tests for boundary values and situations where the inverter should not generate power.
+
+### Simulation Testing
+
+The inverter tests are located in:
+
+```text
+tests/inverter/
+```
+
+These tests help verify that changes to the simulation logic do not break previously working calculations.
+
+The simulation module can also be tested independently of external API connections.
+
+## Authentication and Database
+
+### Authentication
+
+The project uses JWT-based authentication to control access to protected API endpoints.
+
+Authentication-related operations are handled separately from the main API services.
+
+The authentication system uses:
+
+- PyJWT for token operations.
+- Password hashing through `pwdlib` with Argon2 support.
+- FastAPI dependencies for checking authenticated users.
+- Protected endpoints that require authentication.
+
+The goal is to keep authentication logic reusable across different API routes.
+
+### Database
+
+Database operations are handled through SQLAlchemy.
+
+I use PostgreSQL in my local development environment.
+
+The database layer is responsible for managing connections and handling application data.
+
+Database connection settings are read from environment variables instead of being hardcoded directly into the source code.
+
+This makes it easier to use different configurations for development and testing.
+
+### Security Considerations
+
+Sensitive configuration values should never be committed to the repository.
+
+These include:
+
+- API keys.
+- Database credentials.
+- JWT secret keys.
+- External service usernames and passwords.
+
+Each environment should use its own configuration values.
+
+## Installation
+
+### Requirements
+
+Before running the project, make sure the following tools are available:
+
+- Python 3.12 or newer.
+- Git.
+- uv.
+- PostgreSQL for features that require database access.
+- Valid credentials for external services when making real API requests.
+
+### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/emirhannavdar/ges_battery.git
 cd ges_battery
 ```
 
-### 3. Bağımlılıkları yükleme
+### 2. Install Dependencies
+
+The project uses `uv` for dependency management.
+
+Install the dependencies with:
 
 ```bash
 uv sync --frozen
 ```
 
-Bu komut, repoda bulunan `uv.lock` dosyasına göre proje ortamını hazırlar.
+This installs the dependencies according to the existing `uv.lock` file.
 
-## Ortam değişkenleri
+### 3. Configure the Environment
 
-Uygulamayı çalıştırmadan önce proje kök dizininde `.env` dosyası oluşturulmalı ve kullanılan servislerin gerçek yapılandırma bilgileri girilmeli.
+Create a `.env` file in the project root directory and configure the required environment variables.
 
-Örnek değişken adları:
+The application needs valid configuration values for external APIs, authentication, and database access.
+
+## Environment Variables
+
+The following variables are used in the project configuration:
 
 ```dotenv
 _VISUAL_CROSSING_API_KEY=your-visual-crossing-api-key
 _VISUAL_CROSSING_BASE_URI=your-visual-crossing-base-url
+
 _EPIAS_BASE_URI=your-epias-base-url
 _TGT_URL=your-tgt-endpoint
 _PTF_ENDPOINT=your-ptf-endpoint
 _KPTF_ENDPOINT=your-kptf-endpoint
+
 _EPIAS_USERNAME=your-epias-username
 _EPIAS_PASSWORD=your-epias-password
+
 _HASH_PASSWORD=your-hash-configuration
 _DATABASE_URL=postgresql+psycopg://user:password@localhost:5432/database_name
 _SECRET_KEY=your-long-random-secret-key
 ```
 
-Yukarıdaki değerler örnektir; gerçek servis adresleri, veritabanı sürücüsü ve kimlik bilgileri kullanılan ortama göre ayarlanmalıdır. Özellikle `_DATABASE_URL` içindeki sürücü, projede kurulu PostgreSQL sürücüsüyle uyumlu olmalıdır. `.env` yükleme biçimi de uygulamanın yapılandırma koduyla uyumlu olmalıdır.
+These are example values and must be replaced with the correct configuration for the environment.
 
-## Uygulamayı çalıştırma
+The database connection string must use a driver supported by the installed project dependencies.
 
-Gerekli yapılandırmayı tamamladıktan sonra API'yi geliştirme modunda başlatmak için:
+The `.env` loading method must also match the application's configuration code.
+
+**Important:** Do not commit the `.env` file or any real credentials to GitHub.
+
+## Running the Application
+
+After installing the dependencies and configuring the environment, start the FastAPI application:
 
 ```bash
 uv run uvicorn api.api:app --reload --host 127.0.0.1 --port 8001
 ```
 
-Sunucu çalıştığında, FastAPI'nin otomatik dokümantasyon sayfalarına şu adreslerden ulaşılabilir:
+The API will be available at:
 
-- Swagger UI: `http://127.0.0.1:8001/docs`
-- ReDoc: `http://127.0.0.1:8001/redoc`
+```text
+http://127.0.0.1:8001
+```
 
-`uvicorn` komutu bulunamazsa ilgili paketin proje ortamında kurulu olduğunu kontrol etmek gerekir.
+### API Documentation
 
-## Testler
+FastAPI provides interactive API documentation.
 
-Projede pytest kullanıyorum. API testlerinde gerçek harici servislere bağımlı kalmamak için `MagicMock`, `patch` ve FastAPI'nin `dependency_overrides` mekanizmasından yararlanıyorum.
+Swagger UI:
 
-Bu sayede örneğin bir hava durumu endpoint'inin doğru yanıtı üretip üretmediğini kontrol ederken Visual Crossing'e gerçek istek göndermem gerekmiyor. Aynı şekilde API testinin kapsamı dışında kalan veritabanı kayıt işlemleri de gerektiğinde mock'lanabiliyor.
+```text
+http://127.0.0.1:8001/docs
+```
 
-Testleri çalıştırmak için:
+ReDoc:
+
+```text
+http://127.0.0.1:8001/redoc
+```
+
+These pages can be used to inspect endpoints, review request parameters, and test API requests.
+
+If the `uvicorn` command is unavailable, check whether the package is installed in the project environment.
+
+## Testing
+
+I use pytest to test the API endpoints and inverter simulation logic.
+
+The tests are organized into separate directories:
+
+```text
+tests/
+├── apis/
+│   ├── conftest.py
+│   ├── test_epias.py
+│   └── test_visual_crossing.py
+└── inverter/
+    ├── test_inverter_calculate_available_power.py
+    └── test_inverter_step.py
+```
+
+### Running All Tests
 
 ```bash
 uv run python -m pytest -v
 ```
 
-Yalnızca API testlerini çalıştırmak için:
+### Running API Tests
 
 ```bash
 uv run python -m pytest tests/apis -v
 ```
 
-Yalnızca inverter testlerini çalıştırmak için:
+### Running Inverter Tests
 
 ```bash
 uv run python -m pytest tests/inverter -v
 ```
 
-`v1.1.0` geliştirme aşamasında toplam **27 test** yerel ortamda başarılı şekilde çalıştı. GitHub Actions tarafında da otomatik test iş akışı başarılı duruma getirildi.
+### API Testing Approach
 
-Testlerde özellikle şu senaryolara yer verdim:
+For API tests, I use `MagicMock`, `patch`, and FastAPI's `dependency_overrides` mechanism.
 
-| Alan | Kontrol edilen durumlar |
-| --- | --- |
-| EPİAŞ | Yetkisiz erişim, eksik parametre, başarılı token/PTF/KPTF istekleri |
-| Visual Crossing | Yetkisiz erişim, eksik parametre, normal ve ayrıntılı hava durumu yanıtları |
-| İnverter | Güç hesapları, sınır değerleri, durum değişiklikleri ve `step` davranışı |
+This allows me to test endpoint behavior without making real requests to external services.
+
+For example, when testing the Visual Crossing endpoint, I can replace the actual weather service with a mock object that returns predefined weather data.
+
+Database write operations can also be mocked when they are outside the scope of the test.
+
+This makes the tests more predictable and avoids depending on external API availability.
+
+### Test Coverage
+
+During the `v1.1.0` development process, the project reached **27 passing automated tests**.
+
+| Module | Tests | Main Scenarios |
+| --- | ---: | --- |
+| EPİAŞ API | 7 | Authentication, missing parameters, successful requests |
+| Visual Crossing API | 6 | Authentication, validation, weather responses |
+| Inverter simulation | 14 | Power calculations, operating states, boundary conditions |
+| **Total** | **27** | |
+
+The GitHub Actions test workflow was also successfully completed.
+
+Passing tests do not mean that every possible application behavior has been covered. I plan to expand the test suite as the project grows.
 
 ## GitHub Actions
 
-Projede otomatik test çalıştırmak için `.github/workflows/` altında GitHub Actions iş akışı bulunuyor.
+I added GitHub Actions to automate the testing process.
 
-İş akışı, yapılandırılmış `push` ve `pull_request` olaylarında temiz bir Linux ortamı oluşturuyor, Python ve bağımlılıkları kuruyor, ardından pytest testlerini çalıştırıyor.
+The workflow is stored in:
 
-Bu sayede kodu GitHub'a gönderdikten sonra testleri her seferinde manuel çalıştırmadan sonuçlarını Actions sekmesinden takip edebiliyorum.
+```text
+.github/workflows/tests.yml
+```
 
-GitHub Actions sonuçları: [Actions sayfası](https://github.com/emirhannavdar/ges_battery/actions)
+It runs automatically for the configured `push` and `pull_request` events.
 
-**Not:** Testlerin başarılı olması, bütün uygulama davranışlarının veya gerçek harici servis bağlantılarının doğrulandığı anlamına gelmiyor. Mock kullanılan testler, özellikle endpoint davranışlarını ve beklenen veri akışını kontrol ediyor.
+### CI Workflow
 
-## Geliştirme notları
+The workflow performs the following steps:
 
-Projeyi geliştirirken özellikle şu konulara odaklanıyorum:
+1. Checks out the repository.
+2. Sets up the Python environment.
+3. Installs `uv`.
+4. Installs project dependencies using the lockfile.
+5. Configures test environment variables.
+6. Runs the pytest test suite.
 
-1. API endpoint'leriyle servis mantığını birbirinden ayırmak.
-2. Harici servis hatalarını anlaşılır biçimde yönetmek.
-3. Ortam değişkenleri üzerinden yapılandırma yapmak.
-4. Veritabanı işlemlerini API akışından bağımsız test edebilmek.
-5. İnverter hesaplamalarında normal ve sınır durumlarını kontrol etmek.
-6. Her yeni geliştirmede mevcut testlerin çalışmaya devam ettiğinden emin olmak.
+The main test command is:
 
-İlerleyen aşamalarda kimlik doğrulama testlerini genişletmek, veritabanı entegrasyon testlerini ayrı bir test ortamında çalıştırmak ve test kapsamını ölçmek istiyorum.
+```bash
+uv run python -m pytest -v
+```
 
-## Sürüm bilgisi
+### Why I Added CI
 
-**v1.1.0** — Otomatik test altyapısı ve GitHub Actions CI entegrasyonu.
+Before adding GitHub Actions, I was running tests locally to check whether changes had broken existing functionality.
 
-Önceki sürümler ve değişiklikler için: [Releases](https://github.com/emirhannavdar/ges_battery/releases)
+With CI, tests also run automatically in a clean environment when the configured GitHub events occur.
+
+This helps catch issues such as missing dependencies, import errors, and differences between local and CI environments.
+
+The workflow does not modify application code automatically. It only runs the configured checks.
+
+GitHub Actions results can be viewed here:
+
+[View GitHub Actions](https://github.com/emirhannavdar/ges_battery/actions)
+
+## Development Notes
+
+While working on this project, I've been focusing on improving both the application structure and the development process.
+
+Some of the main things I've worked on are:
+
+1. Separating endpoint handlers from service logic.
+2. Organizing external API requests into reusable classes.
+3. Handling application and external service errors consistently.
+4. Moving sensitive configuration values into environment variables.
+5. Managing database connections and persistence separately.
+6. Adding unit tests for inverter calculations.
+7. Testing API endpoints with mocked dependencies.
+8. Setting up automated testing through GitHub Actions.
+
+There are still several areas I want to improve.
+
+### Planned Improvements
+
+- Expand authentication and authorization tests.
+- Add more database integration tests using an isolated test database.
+- Measure test coverage.
+- Improve API documentation.
+- Add more simulation scenarios.
+- Continue refactoring the project as new features are added.
+
+I'm treating this project as an ongoing development process, so the structure and functionality may change as I improve different parts of the system.
+
+## Version History
+
+### v1.1.0 — Automated Testing & CI Integration
+
+This release focuses on improving test reliability and automating the testing process.
+
+Main changes:
+
+- Added automated API tests.
+- Added inverter simulation tests.
+- Integrated GitHub Actions CI.
+- Improved dependency management.
+- Added mock-based testing for external services.
+- Fixed test environment configuration issues.
+- Verified the automated test workflow.
+
+Previous releases and version details are available on the GitHub Releases page:
+
+[View Releases](https://github.com/emirhannavdar/ges_battery/releases)
 
 ---
 
-Bu proje üzerinde geliştirme ve öğrenme sürecim devam ediyor. Yeni modüller ekledikçe hem kod yapısını hem de testlerini güncellemeye çalışıyorum.
+This project is still under development. I'll continue updating the code, tests, and documentation as I add new features and improve the existing implementation.

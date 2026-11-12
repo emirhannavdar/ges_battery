@@ -1,5 +1,3 @@
-from unittest import result
-
 import pytest
 from simulation.inverter import Inverter, InverterConfig, InverterStatus
 

@@ -34,7 +34,7 @@ jobs:
           _EPIAS_USERNAME: "test-value"
           _EPIAS_PASSWORD: "test-value"
           _HASH_PASSWORD: "test-value"
-          _DATABASE_URL: "test-value"
+          _DATABASE_URL: "sqlite:///./test.db"
           _SECRET_KEY: "test-value"
 
         run: uv run python -m pytest -v

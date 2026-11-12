@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 from api.api import app
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock,patch
 from api.services.visual_crossing import get_weather_client
 
 
@@ -136,13 +136,18 @@ def test_weather_success(authenticated_client):
     app.dependency_overrides[get_weather_client] = lambda: fake_user
 
     try:
-        response = authenticated_client.get(
-            "/api/v1/visual_crossing",
-            params = {
-                "enlem": "39.97",
-                "boylam": "32.68"
-            }
-        )
+        with patch(
+                "api.endpoints.visual_crossing_request.save_weather_data"
+        ) as mock_save:
+            response = authenticated_client.get(
+                "/api/v1/visual_crossing",
+                params={
+                    "enlem": "39.97",
+                    "boylam": "32.68"
+                }
+            )
+
+            mock_save.assert_called_once()
 
         assert response.status_code == 200
 

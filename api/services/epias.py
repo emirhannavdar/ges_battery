@@ -1,10 +1,9 @@
 ﻿import requests
 import logging
 
-from api.config.config import _EPIAS_BASE_URI
+from api.config.config import settings
 from api.errors.exceptions import (DomainError,ExternalServiceError,AuthenticationError)
 from api.services.epias_params import (get_tgt_headers,get_tgt_body,get_epias_headers,get_ptf_body,get_kptf_body)
-from api.config.config import _TGT_URL, _PTF_ENDPOINT, _KPTF_ENDPOINT
 from api.errors.request_errors import handle_request_error
 
 
@@ -34,7 +33,7 @@ class OOP_Epias:
     def post_TGT_token(self, username: str, password: str):
         try:
             response = self.session.post(
-                _TGT_URL,
+                settings._TGT_URL,
                 headers=get_tgt_headers(),
                 data=get_tgt_body(username, password),
                 timeout=30
@@ -87,7 +86,7 @@ class OOP_Epias:
         )
 
         response_data = self.__post_epias(
-            endpoint=_PTF_ENDPOINT,
+            endpoint= settings._PTF_ENDPOINT,
             body=body
         )
 
@@ -117,7 +116,7 @@ class OOP_Epias:
         body = get_kptf_body(startDate=startDate)
 
         response_data = self.__post_epias(
-            endpoint=_KPTF_ENDPOINT,
+            endpoint= settings._KPTF_ENDPOINT,
             body=body
         )
 
@@ -130,7 +129,7 @@ class OOP_Epias:
 
         return response_data
 
-__epias_client = OOP_Epias(_EPIAS_BASE_URI)
+__epias_client = OOP_Epias(settings._EPIAS_BASE_URI)
 
 def get_epias_client() -> OOP_Epias:
     return __epias_client

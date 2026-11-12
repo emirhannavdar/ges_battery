@@ -3,7 +3,7 @@ import requests
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from api.config.config import _ENLEM, _BOYLAM
+from api.config.config import settings
 from api.services.visual_crossing import (
     OOP_VisualCrossing,
     get_weather_client
@@ -23,8 +23,8 @@ visual_crossing = APIRouter()
     response_model= _RestApi[WeatherData]
 )
 def weather(
-    enlem: float= _ENLEM,
-    boylam: float= _BOYLAM,
+    enlem: float= settings._ENLEM,
+    boylam: float= settings._BOYLAM,
     client: OOP_VisualCrossing = Depends(get_weather_client),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -50,8 +50,8 @@ def weather(
     response_model= _RestApi[WeatherData]
 )
 def weather_full(
-        enlem: float = _ENLEM,
-        boylam: float = _BOYLAM,
+        enlem: float = settings._ENLEM,
+        boylam: float = settings._BOYLAM,
         client: OOP_VisualCrossing = Depends(get_weather_client),
         current_user: User = Depends(get_current_user),
         active_user: User = Depends(get_current_active_user)

@@ -1,7 +1,7 @@
 ﻿import requests
 import logging
 
-from api.config.config import _VISUAL_CROSSING_BASE_URI, _VISUAL_CROSSING_API_KEY
+from api.config.config import settings
 
 from api.services.weather_params import (
     get_weather_params,
@@ -20,8 +20,8 @@ class OOP_VisualCrossing():
 
     def __init__(self):
         self.session = requests.Session()
-        self.token = _VISUAL_CROSSING_API_KEY
-        self.base_url = _VISUAL_CROSSING_BASE_URI
+        self.token = settings._VISUAL_CROSSING_API_KEY
+        self.base_url = settings._VISUAL_CROSSING_BASE_URI
 
     def __setattr__(self, name, value):
         if name == "token" and hasattr(self, "token"):

@@ -38,7 +38,7 @@ class InverterConfig:
             raise ValueError("minimum irradiance must be nonnegative")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True)             # değiştirilemez yapar
 class InverterReading:
     status: str
     dc_power_kw: float
@@ -140,39 +140,39 @@ class Inverter:
             return 0.0
 
         # 4. Sıcaklık etkisi
-        temperature_factor = max(
+        self.temperature_factor = max(           # temperature_factor = max(0.0, 0.79)
             0.0,
-            1 + self.config.temperature_coefficient_per_c
+            1 + self.config.temperature_coefficient_per_c       # -0.0035
             * (cell_temperature_c - 25.0)
         )
 
         # 5. DC üretim gücü
-        dc_kw = (
-                self.config.dc_rated_kw
-                * irradiance_w_m2
+        self.dc_kw = (
+                self.config.dc_rated_kw     # 1200.0
+                * irradiance_w_m2           # 1000
                 / 1000.0
-                * temperature_factor
+                * self.temperature_factor   # 0.965
         )
 
         # 6. Reaktif güç nedeniyle oluşan aktif güç sınırı
         q_kvar = self.reactive_power_setpoint_kvar
 
-        max_active_from_kva = sqrt(
+        self.max_active_from_kva = sqrt(
             max(
                 0.0,
-                self.config.apparent_rated_kva ** 2
+                self.config.apparent_rated_kva ** 2     # 1000000
                 - q_kvar ** 2
             )
         )
 
         # 7. EKK kısıtlaması olmadan üretilebilecek AC güç
-        available_kw = min(
-            dc_kw * self.config.efficiency,
-            self.config.ac_rated_kw,
-            max_active_from_kva
+        self.available_kw = min(
+            self.dc_kw * self.config.efficiency,        # 1158 * 0,97
+            self.config.ac_rated_kw,                    # 900
+            self.max_active_from_kva                    # 1000
         )
 
-        return max(0.0, available_kw)
+        return max(0.0, self.available_kw)
 
     def step(self, irradiance_w_m2: float, cell_temperature_c: float, dt_seconds: float = 1.0) -> InverterReading:
         for name, value in (("irradiance_w_m2", irradiance_w_m2), ("cell_temperature_c", cell_temperature_c), ("dt_seconds", dt_seconds)):

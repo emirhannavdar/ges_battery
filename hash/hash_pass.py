@@ -1,5 +1,4 @@
 from pwdlib import PasswordHash
-
 from pydoc import text
 from typing import Annotated
 from fastapi import Depends

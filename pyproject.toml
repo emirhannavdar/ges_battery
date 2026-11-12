@@ -7,6 +7,7 @@ dependencies = [
     "core-models>=0.5.7",
     "fastapi>=0.162.0",
     "pip>=26.3",
+    "pwdlib[argon2]>=0.3.1",
     "pyjwt>=2.15.1",
     "pymodbus>=3.16.2",
     "pytest>=9.2.0",

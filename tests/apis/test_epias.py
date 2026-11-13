@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 from api.api import app
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from api.services.epias import get_epias_client
 
 client = TestClient(app)
@@ -48,13 +48,14 @@ def test_epias_ptf_success(authenticated_client):
     app.dependency_overrides[get_epias_client] = lambda: fake_epias
 
     try:
-        response = authenticated_client.post(
-            "api/v1/epias/PTF",
-            params = {
-                "startDate": "2026-11-11T00:00:00+03:00",
-                "endDate": "2026-11-12T00:00:00+03:00"
-            }
-        )
+        with patch("api.endpoints.epias_request.save_epias_pt_data",return_value=1):
+            response = authenticated_client.post(
+                "api/v1/epias/PTF",
+                params = {
+                    "startDate": "2026-11-11T00:00:00+03:00",
+                    "endDate": "2026-11-12T00:00:00+03:00"
+                }
+            )
 
         assert response.status_code == 200
 

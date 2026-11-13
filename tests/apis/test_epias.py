@@ -38,7 +38,9 @@ def test_epias_ptf_success(authenticated_client):
             {
                 "date": "2026-11-11",
                 "hour": "00:00",
-                "price": 1500.0
+                "price": 1500.0,
+                "priceUsd": 1500.0,
+                "priceEur": 1500.0,
             }
         ]
     }

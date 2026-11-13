@@ -80,11 +80,6 @@ async def login(
 
     token_data = auth_client._jwt_token(form_data.username)
 
-    logger.info(
-        "PostgreSQL kullanıcı sorgusu tamamlandı. username= %s, fullname= %s email= %s",
-        form_data.username, user_dict.full_name, user_dict.email
-    )
-
     try:
         db.execute(
             text("""

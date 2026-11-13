@@ -136,9 +136,7 @@ def test_weather_success(authenticated_client):
     app.dependency_overrides[get_weather_client] = lambda: fake_user
 
     try:
-        with patch(
-                "api.endpoints.visual_crossing_request.save_weather_data"
-        ) as mock_save:
+        with patch("api.endpoints.visual_crossing_request.save_weather_data") as mock_save:
             response = authenticated_client.get(
                 "/api/v1/visual_crossing",
                 params={

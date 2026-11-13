@@ -7,3 +7,4 @@ __pycache__/
 logs/
 .env
 hash_test.py
+celerybeat-schedule*

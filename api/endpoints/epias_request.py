@@ -2,18 +2,18 @@
 import logging
 
 from fastapi import APIRouter, Query, Depends
+from sqlalchemy.orm import Session
 
 from api.services.epias import OOP_Epias, get_epias_client
 from api.services.epias_params import EpiasTGTToken
-
 from api.errors.exceptions import AuthenticationError
 from api.errors.request_errors import handle_request_error
-
 from api.response.response import _RestApi
 from api.response.epias_response_model import PTFData, KPTFData
 from auth.auth import User, get_current_user
 from auth.auth import get_current_active_user
-
+from database.database import get_db
+from database.epias_ptf_db import save_epias_pt_data
 
 logger = logging.getLogger(__name__)
 
@@ -46,11 +46,18 @@ def ptf(
         startDate: str = Query(..., examples="yyyy-aa-ggT00:00:00+03:00", description="Başlangıç tarihi"),
         endDate: str = Query(..., examples="yyyy-aa-ggT00:00:00+03:00", description="Bitiş tarihi"),
         client: OOP_Epias = Depends(get_epias_client),
+        db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
         active_user: User = Depends(get_current_active_user)
 ):
     try:
         data = client.post_PTF(startDate, endDate)
+
+        save_epias_pt_data(
+            db=db,
+            epias_data=data
+        )
+
         logger.info("PTF verileri çekildi.")
         return _RestApi.ok(data=data,message="PTF verileri çekildi")
 

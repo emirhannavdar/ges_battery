@@ -1,5 +1,4 @@
 import logging
-from celery.exceptions import MaxRetriesExceededError
 from api.services.visual_crossing import OOP_VisualCrossing
 from database.weather_db import save_weather_data
 from tasks.celery_app import celery_app

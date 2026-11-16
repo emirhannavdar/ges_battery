@@ -55,7 +55,7 @@ class UserAuth:
             "jti": str(uuid4()),    # token'ın kimliği
             "iss": "ges-battery",   # token'ı oluşturan sevişs
             "aud": "ges-battery-api",   #tokenın kullanılacağı servis
-            "type": "bearer"
+            "type": "access"
         }
 
         token = jwt.encode(
@@ -105,6 +105,7 @@ class UserAuth:
                     ]
                 }
             )
+
             if payload.get("type") != "access":
                 return None
 
@@ -123,6 +124,8 @@ class UserAuth:
 
     async def authenticate_user(self, token: str, db: Session):
         user_id = self.__decode_token(token)
+
+
 
         if user_id is None:
             raise AuthenticationError("geçersiz veya süresi dolmuş token.")

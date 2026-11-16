@@ -32,7 +32,7 @@ def get_db():
 def get_user_db(db, username: str):
     result = db.execute(
         text("""
-            SELECT username, full_name, email, hashed_password, disabled
+            SELECT id, username, full_name, email, hashed_password, disabled
             FROM users
             WHERE username = :username
         """),{"username": username}

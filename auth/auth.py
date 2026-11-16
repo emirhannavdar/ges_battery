@@ -1,10 +1,9 @@
 import logging
 import os
 import pathlib
-from queue import PriorityQueue
-
 import jwt
 
+from uuid import uuid4
 from datetime import timedelta, datetime, timezone
 from typing import Annotated
 from dotenv import load_dotenv
@@ -45,40 +44,45 @@ class UserAuth:
         self._secret_key = os.getenv("_SECRET_KEY")
         self._algorithm = "HS512"
 
-
-    def _jwt_token(self, username: str):
+    def _jwt_token(self, user_id: int):
+        now = datetime.now(timezone.utc) + timedelta(hours=3)
+        now_str = now.replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%S")
         payload = {
-            "sub": username,
-            "exp": datetime.now(timezone.utc) + timedelta(minutes=30)
+            "sub": str(user_id),
+            "iat": now_str,     # alış tarihi
+            "nbf": now_str,     # token başlangıç arih
+            "exp": now + timedelta(minutes=30), # ne kadar zaman geçerli
+            "jti": str(uuid4()),    # token'ın kimliği
+            "iss": "ges-battery",   # token'ı oluşturan sevişs
+            "aud": "ges-battery-api",   #tokenın kullanılacağı servis
+            "type": "access"
         }
-        jwt_token = jwt.encode(payload, self._secret_key, algorithm=self._algorithm)
 
-        return {
-            "username": username,
-            "access_token": jwt_token,
-            "token_type": "bearer"
-        }
+        token = jwt.encode(
+            payload,
+            self._secret_key,
+            algorithm=self._algorithm
+        )
+
+        return token, payload
 
 
-    def __get_user(self, db: Session, username: str):
+    def __get_user(self, db: Session, user_id: int):
         try:
             result = db.execute(
                 text("""
-                    SELECT username, full_name, email, access_token, hashed_password, disabled
+                    SELECT id, username, full_name, email, access_token, hashed_password, disabled
                     FROM users
-                    WHERE username = :username
+                    WHERE id = :id
                 """),
-                {"username": username}
+                {"id": user_id}
             )
 
             user_dict = result.mappings().first()
 
             if user_dict is None:
                 return None
-
-
             return User(**user_dict)
-
 
         except SQLAlchemyError:
             logger.exception("Kullanıcı sorgusu başarısız")
@@ -91,24 +95,46 @@ class UserAuth:
             payload = jwt.decode(
                 token,
                 self._secret_key,
-                algorithms=[self._algorithm]
+                algorithms=[self._algorithm],
+                audience="ges-battery-api",
+                issuer="ges-battery",
+                options={
+                    "require": [
+                        "sub", "exp", "iat", "nbf",
+                        "jti", "iss", "aud", "type"
+                    ]
+                }
             )
+            if payload.get("type") != "access":
+                return None
 
             return payload.get("sub")
-        except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-            logger.warning("Geçersiz veya süresi dolmuş token denemesi.")
+
+        except jwt.ExpiredSignatureError:
+            logger.warning("JWT süresi dolmuş.")
+            return None
+        except jwt.InvalidTokenError as exc:
+            logger.warning(
+                "JWT doğrulama hatası: %s",
+                type(exc).__name__
+            )
             return None
 
 
     async def authenticate_user(self, token: str, db: Session):
-        username = self.__decode_token(token)
+        user_id = self.__decode_token(token)
 
-
-
-        if not username:
+        if user_id is None:
             raise AuthenticationError("geçersiz veya süresi dolmuş token.")
 
-        user = self.__get_user(db, username)
+        try:
+            user_id = int(user_id)
+        except ValueError:
+            raise AuthenticationError(
+                "Geçersiz token kimliği."
+            )
+
+        user = self.__get_user(db, user_id)
 
         if not user:
             raise DomainError("Kullanıcı bulunamadı.")

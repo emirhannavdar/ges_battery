@@ -78,16 +78,16 @@ async def login(
 
     sayac = 0
 
-    token_data = auth_client._jwt_token(form_data.username)
+    token_data, payload = auth_client._jwt_token(user_id=user_dict["id"])
 
     try:
         db.execute(
             text("""
                     UPDATE users 
                     SET access_token = :access_token 
-                    WHERE username = :username
+                    WHERE email = :email
                 """),
-            {"access_token": token_data["access_token"], "username": user.username},
+            {"access_token": token_data, "email": user.email},
         )
         db.commit()
 
@@ -96,9 +96,10 @@ async def login(
         raise
 
     return {
-        "access_token": token_data["access_token"],
+        "access_token": token_data,
         "token_type": "bearer",
-        "username": user.username
+        "email": user.email,
+        "payload": payload
     }
 
 

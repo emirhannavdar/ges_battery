@@ -64,7 +64,7 @@ class UserAuth:
             algorithm=self._algorithm
         )
 
-        return token, payload
+        return token
 
 
     def __get_user(self, db: Session, user_id: int):

@@ -78,7 +78,7 @@ async def login(
 
     sayac = 0
 
-    token_data, payload = auth_client._jwt_token(user_id=user_dict["id"])
+    token_data = auth_client._jwt_token(user_id=user_dict["id"])
 
     try:
         db.execute(
@@ -98,8 +98,7 @@ async def login(
     return {
         "access_token": token_data,
         "token_type": "bearer",
-        "email": user.email,
-        "payload": payload
+        "email": user.email
     }
 
 

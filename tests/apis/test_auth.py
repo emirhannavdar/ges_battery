@@ -40,6 +40,7 @@ def test_auth_token():
          patch("auth.auth_request.controle_hash_password", return_value=True):
 
         mock_get_user.return_value = {
+            "id": 12,
             "username": "test",
             "hashed_password": "fake-hashed-password",
             "token_type": "Bearer",

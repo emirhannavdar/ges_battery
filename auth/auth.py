@@ -3,6 +3,7 @@ import os
 import pathlib
 import jwt
 
+from zoneinfo import ZoneInfo
 from uuid import uuid4
 from datetime import timedelta, datetime, timezone
 from typing import Annotated
@@ -45,17 +46,16 @@ class UserAuth:
         self._algorithm = "HS512"
 
     def _jwt_token(self, user_id: int):
-        now = datetime.now(timezone.utc) + timedelta(hours=3)
-        now_str = now.replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%S")
+        now = datetime.now(ZoneInfo("Europe/Istanbul"))
         payload = {
             "sub": str(user_id),
-            "iat": now_str,     # alış tarihi
-            "nbf": now_str,     # token başlangıç arih
+            "iat": now,     # alış tarihi
+            "nbf": now,     # token başlangıç arih
             "exp": now + timedelta(minutes=30), # ne kadar zaman geçerli
             "jti": str(uuid4()),    # token'ın kimliği
             "iss": "ges-battery",   # token'ı oluşturan sevişs
             "aud": "ges-battery-api",   #tokenın kullanılacağı servis
-            "type": "access"
+            "type": "bearer"
         }
 
         token = jwt.encode(
@@ -64,7 +64,7 @@ class UserAuth:
             algorithm=self._algorithm
         )
 
-        return token
+        return {"token": token, "payload": payload}
 
 
     def __get_user(self, db: Session, user_id: int):

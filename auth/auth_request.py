@@ -87,7 +87,7 @@ async def login(
                     SET access_token = :access_token 
                     WHERE email = :email
                 """),
-            {"access_token": token_data, "email": user.email},
+            {"access_token": token_data["token"], "email": user.email},
         )
         db.commit()
 
@@ -96,8 +96,10 @@ async def login(
         raise
 
     return {
-        "access_token": token_data,
-        "token_type": "bearer",
+        "access_token": token_data["token"],
+        "purchase date": token_data["payload"]["nbf"],
+        "sevice": token_data["payload"]["iss"],
+        "token-type": token_data["payload"]["type"],
         "email": user.email
     }
 

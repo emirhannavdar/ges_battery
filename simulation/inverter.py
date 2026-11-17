@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 from dataclasses import asdict, dataclass
 from enum import Enum
 from math import sqrt, isfinite
@@ -95,11 +94,13 @@ class Inverter:
         self.fault_reason = reason
         self.status = InverterStatus.FAULT
         self._last_reading = self._zero_reading()
+        return self._last_reading
 
     def reset_fault(self) -> None:
         self.fault_reason = None
         self.status = InverterStatus.OFF
         self._last_reading = self._zero_reading()
+        return self._last_reading
 
     def set_reactive_power(self, kvar: float) -> None:
         if not isfinite(kvar) or abs(kvar) > self.config.apparent_rated_kva:

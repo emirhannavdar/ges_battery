@@ -1,4 +1,6 @@
 import pytest
+
+from api.response import response
 from simulation.inverter import Inverter, InverterConfig, InverterStatus
 
 @pytest.fixture(autouse=True)
@@ -43,6 +45,21 @@ def test_step_status_off():
     assert result.ac_power_kw == 0.0
     assert result.energy_kwh == 0.0
 
+def test_fault(inverter):
+    result = inverter.set_fault(
+        reason="Dc gerilim hatası."
+    )
+
+    assert result.status == "fault"
+    assert result.dc_power_kw == 0.0
+    assert result.ac_power_kw == 0.0
+    assert result.energy_kwh == 0.0
+
+def test_reset_fault(inverter):
+    response = inverter.reset_fault()
+
+    assert response.status == "off"
+
 def test_step_fault(inverter):
     inverter.status = InverterStatus.FAULT
 
@@ -55,6 +72,8 @@ def test_step_fault(inverter):
     assert result.dc_power_kw == 0.0
     assert result.ac_power_kw == 0.0
     assert result.energy_kwh == 0.0
+
+
 
 def test_minimum_irradiance_w_m2(inverter):
     result = inverter.step(

@@ -1,5 +1,6 @@
 import logging
 import pathlib
+import string
 
 from typing import Annotated
 from fastapi import Depends, APIRouter, HTTPException
@@ -12,11 +13,11 @@ from sqlalchemy.orm import Session
 from fastapi.responses import JSONResponse
 
 from auth.auth import UserInDB, User, get_current_user, auth_client, get_current_active_user
-from api.errors.exceptions import AuthenticationError
 from database.database import get_db, get_user_db, get_user_by_email
 
 from hash.hash_pass import get_hashed_password, controle_hash_password
 from database.database import create_user_db
+
 
 
 BASE_DIR = pathlib.Path(__file__).resolve().parents[2]
@@ -123,9 +124,20 @@ def sign_up(
             detail="Bu e-posta adresi zaten kayıtlı."
         )
 
+    if len(raw.password) <= 15 :
+        raise HTTPException(
+            status_code=400,
+            detail="En az 15 karakterlik bir şifre giriniz."
+        )
+    if not any(char in string.punctuation for char in raw.password):
+        raise HTTPException(
+            status_code=400,
+            detail="Şifre en az bir özel karakter içermelidir."
+        )
+
     hashed_pass = get_hashed_password(raw.password)
     try:
-        new_user = create_user_db(
+        create_user_db(
             db=db,
             username=raw.username,
             full_name=raw.full_name,

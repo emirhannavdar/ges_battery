@@ -1,8 +1,4 @@
-from sys import path
-from unittest.mock import patch, MagicMock
-
-import pytest
-
+from unittest.mock import patch
 from api.api import app
 from fastapi.testclient import TestClient
 

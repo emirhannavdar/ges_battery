@@ -71,7 +71,7 @@ def test_auth_sign(authenticated_client):
                     "username": "test-user",
                     "full_name": "test user",
                     "email": "test_user@emirhannavdar.com",
-                    "password": "123456"
+                    "password": "123w4a561s2s3456asd145."
                 }
             )
             assert response.status_code == 201

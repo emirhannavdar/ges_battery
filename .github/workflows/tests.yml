@@ -32,7 +32,7 @@ jobs:
           _PTF_ENDPOINT: "test-endpoint"
           _KPTF_ENDPOINT: "test-endpont"
           _EPIAS_USERNAME: "test-value"
-          _EPIAS_PASSWORD: "test-value"
+          _EPIAS_PASSWORD: "test-value-test-value-test-value."
           _HASH_PASSWORD: "test-value"
           _DATABASE_URL: "sqlite:///./test.db"
           _SECRET_KEY: "test-value"

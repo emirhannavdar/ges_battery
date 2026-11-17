@@ -58,6 +58,28 @@ class SimulationManager:
 
         self.clock = SimulationClock()
 
+    def set_inverter_fault(
+            self,
+            inverter_id: str,
+            reason: str
+    ):
+        inverter = self.inverters.get(inverter_id)
+
+        if inverter is None:
+            raise ValueError("Inverter bulunamadı")
+
+        inverter.set_fault(reason)
+
+    def reset_inverter_fault(self, inverter_id: str):
+        inverter = self.inverters.get(inverter_id)
+
+        if inverter is None:
+            raise ValueError("Inverter bulunamadı")
+
+        inverter.reset_fault()
+        inverter.start()
+
+
     def start(self):
         for inverter in self.inverters.values():
             inverter.set_active_power(

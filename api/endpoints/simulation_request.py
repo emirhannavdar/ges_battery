@@ -51,6 +51,10 @@ class DailySimulationRequest(BaseModel):
         ge=0
     )
 
+class InverterFaultRequest(BaseModel):
+    inverter_id: str
+    reason: str = Field(min_length=1)
+
 @inverter_router.post("/start")
 def start_inverter(
         current_user: User = Depends(get_current_user),
@@ -123,6 +127,46 @@ def step_inverter(
         "success": True,
         "data": result
     }
+
+@inverter_router.post('/fault')
+def create_inverter_fault(
+        request: InverterFaultRequest,
+        active_user: User = Depends(get_current_active_user)
+):
+    try:
+        simulation_manager.set_inverter_fault(
+            inverter_id=request.inverter_id,
+            reason=request.reason
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc)
+        ) from exc
+
+    return {
+        "success": True,
+        "message": "Inverter arıza üretti."
+    }
+
+@inverter_router.post('/fault/reset/{inverter_id}')
+def clear_inverter_fault(
+        inverter_id: str,
+        active_user: User = Depends(get_current_active_user)
+):
+    try:
+        simulation_manager.reset_inverter_fault(inverter_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        ) from e
+
+    return {
+        "success": True,
+        "message": "Inverter arızası sıfırlandı"
+    }
+
 
 
 @inverter_router.post("/daily")

@@ -125,8 +125,6 @@ class UserAuth:
     async def authenticate_user(self, token: str, db: Session):
         user_id = self.__decode_token(token)
 
-
-
         if user_id is None:
             raise AuthenticationError("geçersiz veya süresi dolmuş token.")
 

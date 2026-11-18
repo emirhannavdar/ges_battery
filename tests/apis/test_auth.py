@@ -103,6 +103,7 @@ def test_auth_token_disabled_user(authenticated_client):
 
     with patch("auth.auth_request.get_user_db") as mogic_db:
         mogic_db.return_value = {
+            "id": -1,
             "username": "test-user",
             "full_name": "test user",
             "email": "test@test.com",
@@ -131,6 +132,7 @@ def test_auth_token_not_true_password(authenticated_client):
     with patch("auth.auth_request.get_user_db") as mogic_db, \
             patch("auth.auth_request.controle_hash_password", return_value=False):
         mogic_db.return_value = {
+            "id": -1,
             "username": "test-user",
             "full_name": "test user",
             "email": "test@test.com",

@@ -93,7 +93,7 @@ def load_session_manager(
 
     return simulation, manager
 
-@inverter_router.post('', status_code=201)
+@inverter_router.post('/sessions', status_code=201)
 def create_simulation(
         request: CreateSimulationRequest,
         db: Session = Depends(get_db),
@@ -303,7 +303,7 @@ def step_simulation_session(
         db.rollback()
         raise
 
-@inverter_router.post("/sessions/{simulation_id}/reset}")
+@inverter_router.post("/sessions/{simulation_id}/reset")
 def reset_simulation_session(
         simulation_id: UUID,
         db: Session = Depends(get_db),

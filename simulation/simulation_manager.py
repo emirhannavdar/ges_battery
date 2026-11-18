@@ -1,13 +1,13 @@
-from math import sqrt
-from simulation.energy_analyzer import EnergyAnalyzer
+import datetime
+
+from simulation.energy_analyzer import EnergyAnalyzer, AnalyzerReading
 from simulation.transformer import Transformer
 from simulation.simulation_clock import SimulationClock
-from simulation.inverter import Inverter, InverterConfig
+from simulation.inverter import Inverter, InverterConfig, InverterStatus, InverterReading
 from simulation.ekk import EKK
 
 
 class SimulationManager:
-
     def __init__(
             self,
             inverter_count: int = 3,
@@ -280,4 +280,120 @@ class SimulationManager:
                 )
             }
         }
+
+    def export_state(self) -> dict:
+        return {
+            "schema_version": 1,
+            "config": self.config.copy(),
+            "clock": {
+                "current_time": (
+                    self.clock.current_time.isoformat()
+                        if self.clock.current_time is not None
+                        else None
+                )
+            },
+            "inverters": {
+                name: {
+                    "status": inverter.status.value,
+                    "fault_reason": inverter.fault_reason,
+                    "energy_kwh": inverter.energy_kwh,
+                    "active_power_setpoint_kw": inverter.active_power_setpoint_kw,
+                    "reactive_power_setpoint_kvar": inverter.reactive_power_setpoint_kvar,
+                    "last_reading": inverter._last_reading.to_dict()
+                }
+                for name,inverter in self.inverters.items()
+            },
+            "analyzer": {
+                "energy_kwh": self.analyzer.energy_kwh,
+                "last_reading": self.analyzer.get_data()
+            },
+            "transformer": {
+                "rated_kva": self.transformer.rated_kva,
+                "lv_voltage_v": self.transformer.lv_voltage_v,
+                "hv_voltage_v": self.transformer.hv_voltage_v,
+                "efficiency": self.transformer.efficiency
+            },
+            "ekk": {
+                "active_power_limit_kw": self.ekk.active_power_limit_kw,
+                "target_reactive_power_kvar": self.ekk.target_reactive_power_kvar
+            }
+        }
+
+    @classmethod
+    def from_state(cls, state: dict) -> "SimulationManager":
+        if state.get("schema_version") != 1:
+            raise ValueError("Desteklenmeyen simulasyon durumu sürümü.")
+
+        manager = cls(**state["config"])
+
+        saved_inverters = state["inverters"]
+
+        if set(saved_inverters) != set(manager.inverters):
+            raise ValueError("Kaydedilen invertör sayısı uyuşmuyor.")
+
+        for name, inverter_state in saved_inverters.items():
+            inverter = manager.inverters[name]
+
+            inverter.status = InverterStatus(inverter_state["status"])
+
+            inverter.fault_reason = inverter_state["fault_reason"]
+            inverter.energy_kwh = inverter_state["energy_kwh"]
+
+            inverter.set_active_power(inverter_state["active_power_setpoint_kw"])
+
+            inverter.set_reactive_power(
+                inverter_state["reactive_power_setpoint_kvar"]
+            )
+
+            inverter._last_reading = InverterReading(
+                **inverter_state["last_reading"]
+            )
+
+            clock_time = state["clock"]["current_time"]
+
+            manager.clock.current_time = (
+                datetime.datetime.fromisoformat(clock_time)
+                if clock_time is not None
+                else None
+            )
+
+            analyzer_state = state["analyzer"]
+
+            manager.analyzer.energy_kwh = analyzer_state["energy_kwh"]
+
+            if analyzer_state["last_reading"] is not None:
+                manager.analyzer.last_reading = AnalyzerReading(
+                    **analyzer_state["last_reading"]
+                )
+
+            transformer_state = state["transformer"]
+
+            for key, value in transformer_state.items():
+                setattr(manager.transformer, key, value)
+
+            ekk_state = state["ekk"]
+
+            manager.ekk.active_power_limit_kw = (
+                ekk_state["active_power_limit_kw"]
+            )
+
+            manager.ekk.target_reactive_power_kvar = (
+                ekk_state["target_reactive_power_kvar"]
+            )
+
+        return manager
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

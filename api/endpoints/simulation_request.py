@@ -1,3 +1,4 @@
+import json
 from uuid import uuid4, UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -13,7 +14,9 @@ from database.simulation_repository import (
     get_simulations_by_user,
     get_simulation_detail,
     compare_simulations_db,
-    get_user_simulation
+    get_user_simulation,
+    get_user_simulation_for_update,
+    update_simulation_state
 )
 
 
@@ -68,38 +71,94 @@ def create_simulation(
 ):
     simulation_id = str(uuid4())
 
-    db.execute(
-        text(
-            """
-                INSERT INTO simulation_sessions (
-                    id,
-                    user_id,
-                    inverter_count,
-                    state
-                )
-                VALUES (
-                    :id,
-                    :user_id,
-                    :inverter_count,
-                    CAST(:state AS JSONB)
-                )
-            """
-        ), {
-            "id": simulation_id,
-            "user_id": user.id,
-            "inverter_count": request.inverter_count,
-            "state": "{}"
-        }
-    )
+    manager = SimulationManager(inverter_count=request.inverter_count)
 
-    db.commit()
+    state = manager.export_state()
+
+    try:
+        db.execute(
+            text(
+                """
+                    INSERT INTO simulation_sessions (
+                        id,
+                        user_id,
+                        inverter_count,
+                        status,
+                        state
+                    )
+                    VALUES (
+                        :id,
+                        :user_id,
+                        :inverter_count,
+                        :status,
+                        CAST(:state AS JSONB)
+                    )
+                """
+            ), {
+                "id": simulation_id,
+                "user_id": user.id,
+                "inverter_count": request.inverter_count,
+                "status": "created",
+                "state": json.dumps(state)
+            }
+        )
+
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
     return {
         "simulation_id": simulation_id,
         "status": "created"
     }
 
-@inverter_router.get('{simulation_id}')
+@inverter_router.post("/sessions/{simulation_id}/start")
+def start_simulation_session(
+    simulation_id: UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_active_user)
+):
+    try:
+        simulation = get_user_simulation_for_update(
+            db, simulation_id, user.id
+        )
+
+        if simulation is None:
+            raise HTTPException(404, "Simülasyon bulunamadı.")
+
+        if simulation["status"] != "created":
+            raise HTTPException(
+                409, "Simülasyon zaten başlatılmış."
+            )
+
+        manager = SimulationManager.from_state(
+            simulation["state"]
+        )
+
+        manager.start()
+
+        update_simulation_state(
+            db=db,
+            simulation_id=simulation_id,
+            user_id=user.id,
+            state=manager.export_state(),
+            status="running"
+        )
+
+        db.commit()
+
+        return {
+            "success": True,
+            "simulation_id": simulation_id,
+            "status": "running"
+        }
+
+    except Exception:
+        db.rollback()
+        raise
+
+@inverter_router.get('/sessions/{simulation_id}')
 def get_simulations(
         simulation_id: UUID,
         db: Session = Depends(get_db),
@@ -131,6 +190,88 @@ def start_inverter(
         "success": True,
         "message": "İnvertör başlatıldı."
     }
+
+@inverter_router.post("/sessions/{simulation_id}/step")
+def step_simulation_session(
+    simulation_id: UUID,
+    request: InverterStepRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_active_user)
+):
+    try:
+        simulation = get_user_simulation_for_update(
+            db, simulation_id, user.id
+        )
+
+        if simulation is None:
+            raise HTTPException(404, "Simülasyon bulunamadı.")
+
+        if simulation["status"] != "running":
+            raise HTTPException(
+                409, "Önce simülasyonu başlatmalısınız."
+            )
+
+        weather = db.execute(
+            text("""
+                SELECT temperature, solar_radiation,
+                       cloud_cover, datetime_days, datetime_hours
+                FROM weather_data
+                WHERE datetime_days = :day
+                  AND datetime_hours = :hour
+                LIMIT 1
+            """),
+            {
+                "day": request.hangi_gun,
+                "hour": request.saat_kac
+            }
+        ).mappings().first()
+
+        if weather is None:
+            raise HTTPException(404, "Hava durumu bulunamadı.")
+
+        if (
+            weather["temperature"] is None
+            or weather["solar_radiation"] is None
+        ):
+            raise HTTPException(
+                422, "Hava durumu verileri eksik."
+            )
+
+        manager = SimulationManager.from_state(
+            simulation["state"]
+        )
+
+        try:
+            result = manager.step(
+                irradiance=float(weather["solar_radiation"]),
+                ambient_temp=float(weather["temperature"]),
+                dt_seconds=request.dt_seconds,
+                cloud_cover=weather["cloud_cover"],
+                datetime_days=str(weather["datetime_days"]),
+                datetime_hours=str(weather["datetime_hours"])
+            )
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+        update_simulation_state(
+            db=db,
+            simulation_id=simulation_id,
+            user_id=user.id,
+            state=manager.export_state(),
+            status="running"
+        )
+
+        db.commit()
+
+        return {
+            "success": True,
+            "simulation_id": simulation_id,
+            "data": result
+        }
+
+    except Exception:
+        db.rollback()
+        raise
 
 @inverter_router.post("/reset")
 def reset_simulator(

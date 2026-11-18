@@ -1,3 +1,4 @@
+import json
 from uuid import UUID
 
 from sqlalchemy import text
@@ -274,7 +275,53 @@ def get_user_simulation(
         }
     ).mappings().first()
 
+def get_user_simulation_for_update(
+        db: Session,
+        simulation_id: UUID,
+        user_id: int
+):
+    return db.execute(
+        text(
+            """
+                SELECT *
+                FROM simulation_sessions
+                WHERE id = :simulation_id
+                AND user_id = :user_id
+                FOR UPDATE
+            """
+        ), {
+            "simulation_id": str(simulation_id),
+            "user_id": user_id
+        }
+    ).mappings().first()
 
+def update_simulation_state(
+    db: Session,
+    simulation_id: UUID,
+    user_id: int,
+    state: dict,
+    status: str
+):
+    result = db.execute(
+        text("""
+            UPDATE simulation_sessions
+            SET state = CAST(:state AS JSONB),
+                status = :status,
+                version = version + 1,
+                updated_at = NOW()
+            WHERE id = :simulation_id
+              AND user_id = :user_id
+        """),
+        {
+            "simulation_id": str(simulation_id),
+            "user_id": user_id,
+            "state": json.dumps(state),
+            "status": status
+        }
+    )
+
+    if result.rowcount != 1:
+        raise RuntimeError("Simülasyon durumu güncellenemedi.")
 
 
 

@@ -63,6 +63,36 @@ class InverterFaultRequest(BaseModel):
 class CreateSimulationRequest(BaseModel):
     inverter_count: int = Field(default=3, ge=1, le=100)
 
+def load_session_manager(
+        db: Session,
+        simulation_id: UUID,
+        user_id: int,
+        require_running: bool = True
+):
+    simulation = get_user_simulation_for_update(
+        db=db,
+        simulation_id=simulation_id,
+        user_id=user_id
+    )
+
+    if simulation is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Simulasyon bulunamadı"
+        )
+
+    if require_running and simulation["status"] != "running":
+        raise HTTPException(
+            status_code=409,
+            detail="Simulasyon çalışır durumda değil."
+        )
+
+    manager = SimulationManager.from_state(
+        simulation["state"]
+    )
+
+    return simulation, manager
+
 @inverter_router.post('', status_code=201)
 def create_simulation(
         request: CreateSimulationRequest,
@@ -272,6 +302,164 @@ def step_simulation_session(
     except Exception:
         db.rollback()
         raise
+
+@inverter_router.post("/sessions/{simulation_id}/reset}")
+def reset_simulation_session(
+        simulation_id: UUID,
+        db: Session = Depends(get_db),
+        user: User = Depends(get_current_active_user)
+):
+    try:
+        simulation, manager = load_session_manager(
+            db, simulation_id, user.id,
+            require_running=False
+        )
+
+        manager.reset()
+
+        update_simulation_state(
+            db=db,
+            simulation_id=simulation_id,
+            user_id=user.id,
+            state=manager.export_state(),
+            status="created"
+        )
+
+        db.commit()
+
+        return {
+            "success": True,
+            "simulation_id": simulation_id,
+            "status": "created",
+            "message": "Simulasyon sıfırlandı."
+        }
+
+    except Exception:
+        db.rollback()
+        raise
+
+@inverter_router.post("/sessions/{simulation_id}/fault")
+def create_session_inverter_fault(
+    simulation_id: UUID,
+    request: InverterFaultRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_active_user)
+):
+    try:
+        simulation, manager = load_session_manager(
+            db, simulation_id, user.id
+        )
+
+        try:
+            manager.set_inverter_fault(
+                inverter_id=request.inverter_id,
+                reason=request.reason
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=str(exc)
+            ) from exc
+
+        update_simulation_state(
+            db=db,
+            simulation_id=simulation_id,
+            user_id=user.id,
+            state=manager.export_state(),
+            status="running"
+        )
+
+        db.commit()
+
+        return {
+            "success": True,
+            "simulation_id": simulation_id,
+            "inverter_id": request.inverter_id,
+            "message": "İnvertör arızaya alındı."
+        }
+
+    except Exception:
+        db.rollback()
+        raise
+
+
+@inverter_router.post(
+    "/sessions/{simulation_id}/fault/reset/{inverter_id}"
+)
+def reset_session_inverter_fault(
+    simulation_id: UUID,
+    inverter_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_active_user)
+):
+    try:
+        simulation, manager = load_session_manager(
+            db, simulation_id, user.id
+        )
+
+        if inverter_id not in manager.inverters:
+            raise HTTPException(
+                status_code=404,
+                detail="İnvertör bulunamadı."
+            )
+
+        manager.reset_inverter_fault(inverter_id)
+
+        update_simulation_state(
+            db=db,
+            simulation_id=simulation_id,
+            user_id=user.id,
+            state=manager.export_state(),
+            status="running"
+        )
+
+        db.commit()
+
+        return {
+            "success": True,
+            "simulation_id": simulation_id,
+            "inverter_id": inverter_id,
+            "message": "İnvertör arızası sıfırlandı."
+        }
+
+    except Exception:
+        db.rollback()
+        raise
+
+
+@inverter_router.get("/sessions/{simulation_id}/data")
+def get_session_inverter_data(
+    simulation_id: UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_active_user)
+):
+    simulation = get_user_simulation(
+        db=db,
+        simulation_id=simulation_id,
+        user_id=user.id
+    )
+
+    if simulation is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Simülasyon bulunamadı."
+        )
+
+    manager = SimulationManager.from_state(
+        simulation["state"]
+    )
+
+    return {
+        "success": True,
+        "simulation_id": simulation_id,
+        "status": simulation["status"],
+        "current_time": (
+            manager.clock.current_time.isoformat()
+            if manager.clock.current_time is not None
+            else None
+        ),
+        "data": manager.get_inverter_data()
+    }
 
 @inverter_router.post("/reset")
 def reset_simulator(

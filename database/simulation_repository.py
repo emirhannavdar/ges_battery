@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -253,3 +255,42 @@ def compare_simulations_db(
         rows.get(simulation_id_1),
         rows.get(simulation_id_2)
     )
+
+def get_user_simulation(
+        db: Session,
+        simulation_id: UUID,
+        user_id: int
+):
+    return db.execute(
+        text(
+            """
+                SELECT * FROM simulation_sessions
+                WHERE id = :simulation_id
+                AND user_id = :user_id
+            """
+        ), {
+            "simulation_id": simulation_id,
+            "user_id": user_id
+        }
+    ).mappings().first()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

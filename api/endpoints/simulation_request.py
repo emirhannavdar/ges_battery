@@ -1,3 +1,4 @@
+from uuid import uuid4, UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -11,7 +12,8 @@ from database.simulation_repository import (
     save_daily_simulation,
     get_simulations_by_user,
     get_simulation_detail,
-    compare_simulations_db
+    compare_simulations_db,
+    get_user_simulation
 )
 
 
@@ -54,6 +56,68 @@ class DailySimulationRequest(BaseModel):
 class InverterFaultRequest(BaseModel):
     inverter_id: str
     reason: str = Field(min_length=1)
+
+class CreateSimulationRequest(BaseModel):
+    inverter_count: int = Field(default=3, ge=1, le=100)
+
+@inverter_router.post('', status_code=201)
+def create_simulation(
+        request: CreateSimulationRequest,
+        db: Session = Depends(get_db),
+        user: User = Depends(get_current_active_user)
+):
+    simulation_id = str(uuid4())
+
+    db.execute(
+        text(
+            """
+                INSERT INTO simulation_sessions (
+                    id,
+                    user_id,
+                    inverter_count,
+                    state
+                )
+                VALUES (
+                    :id,
+                    :user_id,
+                    :inverter_count,
+                    CAST(:state AS JSONB)
+                )
+            """
+        ), {
+            "id": simulation_id,
+            "user_id": user.id,
+            "inverter_count": request.inverter_count,
+            "state": "{}"
+        }
+    )
+
+    db.commit()
+
+    return {
+        "simulation_id": simulation_id,
+        "status": "created"
+    }
+
+@inverter_router.get('{simulation_id}')
+def get_simulations(
+        simulation_id: UUID,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user)
+):
+    simulation = get_user_simulation(
+        db=db,
+        simulation_id = simulation_id,
+        user_id=current_user.id
+    )
+
+    if simulation is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Simulasyon bulunamadı."
+        )
+
+    return dict(simulation)
 
 @inverter_router.post("/start")
 def start_inverter(

@@ -19,7 +19,7 @@ def test_auth_users_me_without_token():
     assert response.status_code == 401
 
 def test_auth_sign_missing_parameter(authenticated_client):
-    response = client.post(
+    response = authenticated_client.post(
         "/auth/sign"
     )
     assert response.status_code == 422

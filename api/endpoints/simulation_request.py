@@ -18,7 +18,7 @@ from database.simulation_repository import (
     get_user_simulation_for_update,
     update_simulation_state
 )
-from auth.admin_roles import operator_require_roles
+from auth.roles import operator_require_roles
 
 inverter_router = APIRouter(
     prefix="/inverter",

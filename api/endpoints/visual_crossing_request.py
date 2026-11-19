@@ -14,7 +14,7 @@ from api.response.weather_response_model import WeatherData
 from database.weather_db import save_weather_data
 from database.database import get_db
 from auth.auth import get_current_user, User, get_current_active_user
-from auth.admin_roles import admin_require_roles
+from auth.roles import admin_require_roles
 
 visual_crossing = APIRouter()
 

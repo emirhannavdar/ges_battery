@@ -15,6 +15,7 @@ from auth.auth import UserInDB, User, get_current_user, auth_client, get_current
 from database.database import get_db, get_user_db, get_user_by_email
 from hash.hash_pass import get_hashed_password, controle_hash_password
 from database.database import create_user_db
+from auth.roles import admin_require_roles, viewer_require_roles
 
 
 
@@ -33,8 +34,8 @@ class SignUpForm(BaseModel):
     full_name: str
     email: str
     password: str
+    role: str
 
-from auth.admin_roles import admin_require_roles
 
 @auth.post("/token")
 async def login(
@@ -146,6 +147,7 @@ def sign_up(
             full_name=raw.full_name,
             email=raw.email,
             hashed_password=hashed_pass,
+            role=raw.role
         )
 
     except IntegrityError:
@@ -174,7 +176,8 @@ def sign_up(
 @auth.get('/users/me')
 async def read_users_me(
         current_user: Annotated[User, Depends(get_current_user)],
-        active_user: User = Depends(get_current_active_user)
+        active_user: User = Depends(get_current_active_user),
+        user: dict = Depends(viewer_require_roles())
 ):
     return current_user
 

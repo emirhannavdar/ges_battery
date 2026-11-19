@@ -38,3 +38,6 @@ def admin_require_roles():
 
 def operator_require_roles():
     return require_roles("admin", "operator")
+
+def viewer_require_roles():
+    return require_roles("viewer", "operator", "admin")

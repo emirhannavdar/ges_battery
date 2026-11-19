@@ -52,11 +52,11 @@ def get_user_by_email(db: Session, email: str):
 
     return result.mappings().first()
 
-def create_user_db(db, username: str, full_name: str, email: str, hashed_password: str):
+def create_user_db(db, username: str, full_name: str, email: str, hashed_password: str, role: str):
     query = text(
         """
-            INSERT INTO users (username, full_name, email, hashed_password, disabled)
-            VALUES (:username, :full_name, :email, :hashed_password, :disabled)
+            INSERT INTO users (username, full_name, email, hashed_password, disabled, role)
+            VALUES (:username, :full_name, :email, :hashed_password, :disabled, :role)
         """
     )
 
@@ -67,7 +67,8 @@ def create_user_db(db, username: str, full_name: str, email: str, hashed_passwor
             "full_name": full_name,
             "email": email,
             "hashed_password": hashed_password,
-            "disabled": False
+            "disabled": False,
+            "role": role
         }
     )
 

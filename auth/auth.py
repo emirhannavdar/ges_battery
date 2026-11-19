@@ -1,3 +1,4 @@
+import hmac
 import logging
 import os
 import pathlib
@@ -47,16 +48,16 @@ class UserAuth:
         self._algorithm = "HS512"
 
     def _jwt_token(self, user_id: int):
-        now = datetime.now(ZoneInfo("Europe/Istanbul"))
+        now = datetime.now(timezone.utc)
         payload = {
             "sub": str(user_id),
             "iat": now,     # alış tarihi
             "nbf": now,     # token başlangıç arih
-            "exp": now + timedelta(minutes=30), # ne kadar zaman geçerli
+            "exp": now + timedelta(minutes=60), # ne kadar zaman geçerli
             "jti": str(uuid4()),    # token'ın kimliği
             "iss": "ges-battery",   # token'ı oluşturan sevişs
             "aud": "ges-battery-api",   #tokenın kullanılacağı servis
-            "type": "access"
+            "type": "Bearer"
         }
 
         token = jwt.encode(
@@ -107,7 +108,7 @@ class UserAuth:
                 }
             )
 
-            if payload.get("type") != "access":
+            if payload.get("type") != "Bearer":
                 return None
 
             return payload.get("sub")
@@ -131,15 +132,27 @@ class UserAuth:
 
         try:
             user_id = int(user_id)
-        except ValueError:
+        except (ValueError, TypeError):
             raise AuthenticationError(
                 "Geçersiz token kimliği."
             )
 
         user = self.__get_user(db, user_id)
 
-        if not user:
+        if user is None:
             raise DomainError("Kullanıcı bulunamadı.")
+
+        if user.disabled:
+            raise AuthenticationError("Kullancı aktif değil")
+
+        if not user.access_token:
+            raise AuthenticationError("Aktif oturum bulunamadı.")
+
+        if not hmac.compare_digest(
+            token,
+            user.access_token
+        ):
+            raise AuthenticationError("Bu token artık geçerli değil.")
 
         return user
 

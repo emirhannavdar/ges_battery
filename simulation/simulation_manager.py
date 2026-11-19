@@ -27,7 +27,6 @@ class SimulationManager:
         if ekk_active_power_limit_kw < 0:
             raise ValueError("EKK aktif güç limiti negatif olamaz.")
 
-        # Konfigürasyonu sakla
         self.config = {
             "inverter_count": inverter_count,
             "inverter_ac_rated_kw": inverter_ac_rated_kw,
@@ -35,13 +34,11 @@ class SimulationManager:
             "ekk_active_power_limit_kw": ekk_active_power_limit_kw
         }
 
-        # Her invertör için ortak teknik konfigürasyon
         inverter_config = InverterConfig(
             ac_rated_kw=inverter_ac_rated_kw,
             dc_rated_kw=inverter_dc_rated_kw
         )
 
-        # İnvertörleri oluştur
         self.inverters = {
             f"inverter_{i}": Inverter(config=inverter_config)
             for i in range(1, inverter_count + 1)

@@ -99,6 +99,7 @@ async def login(
     return {
         "access_token": token_data["token"],
         "purchase date": token_data["payload"]["nbf"],
+        "final validity": token_data["payload"]["exp"],
         "service": token_data["payload"]["iss"],
         "token-type": token_data["payload"]["type"],
         "email": user.email

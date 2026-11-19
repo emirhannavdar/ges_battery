@@ -36,10 +36,13 @@ class SignUpForm(BaseModel):
     email: str
     password: str
 
+from auth.admin_roles import admin_require_roles
+
 @auth.post("/token")
 async def login(
         form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-        db: Annotated[Session, Depends(get_db)]
+        db: Annotated[Session, Depends(get_db)],
+
 ):
     user_dict = get_user_db(db, form_data.username)
     global sayac
@@ -111,7 +114,8 @@ def sign_up(
         raw: SignUpForm,
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
-        active_user: User = Depends(get_current_active_user)
+        active_user: User = Depends(get_current_active_user),
+        user: dict = Depends(admin_require_roles())
 ):
     existing_user = get_user_db(db, raw.username)
     if existing_user:

@@ -14,6 +14,7 @@ from auth.auth import User, get_current_user
 from auth.auth import get_current_active_user
 from database.database import get_db
 from database.epias_ptf_db import save_epias_pt_data
+from auth.admin_roles import admin_require_roles
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,8 @@ async def tgt_token(
         raw: EpiasTGTToken,
         client: OOP_Epias = Depends(get_epias_client),
         current_user: User = Depends(get_current_user),
-        active_user: User = Depends(get_current_active_user)
+        active_user: User = Depends(get_current_active_user),
+        user: dict = Depends(admin_require_roles())
 ):
     if raw.username == "" or raw.password == "":
         logger.info("Kullanıcı adı veya şifre boş bırakılamaz.")
@@ -48,7 +50,8 @@ def ptf(
         client: OOP_Epias = Depends(get_epias_client),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
-        active_user: User = Depends(get_current_active_user)
+        active_user: User = Depends(get_current_active_user),
+        user: dict = Depends(admin_require_roles())
 ):
     try:
         data = client.post_PTF(startDate, endDate)
@@ -73,7 +76,8 @@ def kptf(
         startDate: str = Query(..., examples="yyyy-aa-ggT00:00:00+03:00", description="Başlangıç tarihi"),
         client: OOP_Epias = Depends(get_epias_client),
         current_user: User = Depends(get_current_user),
-        active_user: User = Depends(get_current_active_user)
+        active_user: User = Depends(get_current_active_user),
+        user: dict = Depends(admin_require_roles())
 ):
     try:
         data = client.post_KPTF(startDate)

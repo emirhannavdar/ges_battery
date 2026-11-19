@@ -18,7 +18,7 @@ from database.simulation_repository import (
     get_user_simulation_for_update,
     update_simulation_state
 )
-
+from auth.admin_roles import operator_require_roles
 
 inverter_router = APIRouter(
     prefix="/inverter",
@@ -97,7 +97,8 @@ def load_session_manager(
 def create_simulation(
         request: CreateSimulationRequest,
         db: Session = Depends(get_db),
-        user: User = Depends(get_current_active_user)
+        user: User = Depends(get_current_active_user),
+        user_roles: dict = Depends(operator_require_roles())
 ):
     simulation_id = str(uuid4())
 
@@ -147,7 +148,8 @@ def create_simulation(
 def start_simulation_session(
     simulation_id: UUID,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_active_user)
+    user: User = Depends(get_current_active_user),
+    user_roles: dict = Depends(operator_require_roles())
 ):
     try:
         simulation = get_user_simulation_for_update(
@@ -192,7 +194,8 @@ def start_simulation_session(
 def get_simulations(
         simulation_id: UUID,
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_active_user)
+        current_user: User = Depends(get_current_active_user),
+        user_roles: dict = Depends(operator_require_roles())
 ):
     simulation = get_user_simulation(
         db=db,
@@ -211,7 +214,8 @@ def get_simulations(
 @inverter_router.post("/start")
 def start_inverter(
         current_user: User = Depends(get_current_user),
-        active_user: User = Depends(get_current_active_user)
+        active_user: User = Depends(get_current_active_user),
+        user_roles: dict = Depends(operator_require_roles())
 ):
 
     simulation_manager.start()
@@ -226,7 +230,8 @@ def step_simulation_session(
     simulation_id: UUID,
     request: InverterStepRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_active_user)
+    user: User = Depends(get_current_active_user),
+    user_roles: dict = Depends(operator_require_roles())
 ):
     try:
         simulation = get_user_simulation_for_update(
@@ -307,7 +312,8 @@ def step_simulation_session(
 def reset_simulation_session(
         simulation_id: UUID,
         db: Session = Depends(get_db),
-        user: User = Depends(get_current_active_user)
+        user: User = Depends(get_current_active_user),
+        user_roles: dict = Depends(operator_require_roles())
 ):
     try:
         simulation, manager = load_session_manager(
@@ -343,7 +349,8 @@ def create_session_inverter_fault(
     simulation_id: UUID,
     request: InverterFaultRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_active_user)
+    user: User = Depends(get_current_active_user),
+    user_roles: dict = Depends(operator_require_roles())
 ):
     try:
         simulation, manager = load_session_manager(
@@ -390,7 +397,8 @@ def reset_session_inverter_fault(
     simulation_id: UUID,
     inverter_id: str,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_active_user)
+    user: User = Depends(get_current_active_user),
+    user_roles: dict = Depends(operator_require_roles())
 ):
     try:
         simulation, manager = load_session_manager(
@@ -431,7 +439,8 @@ def reset_session_inverter_fault(
 def get_session_inverter_data(
     simulation_id: UUID,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_active_user)
+    user: User = Depends(get_current_active_user),
+    user_roles: dict = Depends(operator_require_roles())
 ):
     simulation = get_user_simulation(
         db=db,
@@ -463,7 +472,8 @@ def get_session_inverter_data(
 
 @inverter_router.post("/reset")
 def reset_simulator(
-    active_user: User = Depends(get_current_active_user)
+    active_user: User = Depends(get_current_active_user),
+    user_roles: dict = Depends(operator_require_roles())
 ):
     simulation_manager.reset()
 
@@ -478,7 +488,8 @@ def step_inverter(
         request: InverterStepRequest,
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
-        active_user: User = Depends(get_current_active_user)
+        active_user: User = Depends(get_current_active_user),
+        user_roles: dict = Depends(operator_require_roles())
 ):
 
     result_db = db.execute(
@@ -524,7 +535,8 @@ def step_inverter(
 @inverter_router.post('/fault')
 def create_inverter_fault(
         request: InverterFaultRequest,
-        active_user: User = Depends(get_current_active_user)
+        active_user: User = Depends(get_current_active_user),
+        user_roles: dict = Depends(operator_require_roles())
 ):
     try:
         simulation_manager.set_inverter_fault(
@@ -545,7 +557,8 @@ def create_inverter_fault(
 @inverter_router.post('/fault/reset/{inverter_id}')
 def clear_inverter_fault(
         inverter_id: str,
-        active_user: User = Depends(get_current_active_user)
+        active_user: User = Depends(get_current_active_user),
+        user_roles: dict = Depends(operator_require_roles())
 ):
     try:
         simulation_manager.reset_inverter_fault(inverter_id)
@@ -566,7 +579,8 @@ def clear_inverter_fault(
 def daily_simulation(
     request: DailySimulationRequest,
     db: Session = Depends(get_db),
-    active_user: User = Depends(get_current_active_user)
+    active_user: User = Depends(get_current_active_user),
+    user_roles: dict = Depends(operator_require_roles())
 ):
     # 1. Seçilen günün hava durumu verilerini al
     result_db = db.execute(
@@ -790,7 +804,8 @@ def compare_simulations(
     simulation_id_1: int = Query(..., ge=1),
     simulation_id_2: int = Query(..., ge=1),
     db: Session = Depends(get_db),
-    active_user: User = Depends(get_current_active_user)
+    active_user: User = Depends(get_current_active_user),
+    user_roles: dict = Depends(operator_require_roles())
 ):
     if simulation_id_1 == simulation_id_2:
         raise HTTPException(
@@ -856,7 +871,8 @@ def compare_simulations(
 @inverter_router.get("/simulations")
 def list_simulations(
     db: Session = Depends(get_db),
-    active_user: User = Depends(get_current_active_user)
+    active_user: User = Depends(get_current_active_user),
+    user_roles: dict = Depends(operator_require_roles())
 ):
     simulations = get_simulations_by_user(
         db=db,
@@ -876,7 +892,8 @@ def list_simulations(
 def simulation_detail(
     simulation_id: int,
     db: Session = Depends(get_db),
-    active_user: User = Depends(get_current_active_user)
+    active_user: User = Depends(get_current_active_user),
+    user_roles: dict = Depends(operator_require_roles())
 ):
     simulation = get_simulation_detail(
         db=db,
@@ -898,7 +915,8 @@ def simulation_detail(
 
 @inverter_router.get("/data")
 def get_inverter_data(
-    active_user: User = Depends(get_current_active_user)
+    active_user: User = Depends(get_current_active_user),
+    user_roles: dict = Depends(operator_require_roles())
 ):
     return {
         "success": True,

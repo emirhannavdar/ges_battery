@@ -4,7 +4,7 @@ import os
 import pathlib
 import jwt
 
-from zoneinfo import ZoneInfo
+from api.config.config import _ACTIVE_KEY_ID, _XSECRET_KEYS
 from uuid import uuid4
 from datetime import timedelta, datetime, timezone
 from typing import Annotated
@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 class User(BaseModel):
     id: int
+    role: str = "user"
     username: str
     email: str | None = None
     full_name: str | None = None
@@ -44,13 +45,14 @@ class UserInDB(User):
 
 class UserAuth:
     def __init__(self):
-        self._secret_key = os.getenv("_SECRET_KEY")
+        self._secret_key = _XSECRET_KEYS[_ACTIVE_KEY_ID]
         self._algorithm = "HS512"
 
-    def _jwt_token(self, user_id: int):
+    def _jwt_token(self, user_id: int, role: str = "user"):
         now = datetime.now(timezone.utc)
         payload = {
             "sub": str(user_id),
+            "role": role,
             "iat": now,     # alış tarihi
             "nbf": now,     # token başlangıç arih
             "exp": now + timedelta(minutes=60), # ne kadar zaman geçerli
@@ -63,7 +65,8 @@ class UserAuth:
         token = jwt.encode(
             payload,
             self._secret_key,
-            algorithm=self._algorithm
+            algorithm=self._algorithm,
+            headers={"kid": _ACTIVE_KEY_ID}
         )
 
         return {"token": token, "payload": payload}
@@ -73,7 +76,7 @@ class UserAuth:
         try:
             result = db.execute(
                 text("""
-                    SELECT id, username, full_name, email, access_token, hashed_password, disabled
+                    SELECT id, username, full_name, email, access_token, hashed_password, role, disabled
                     FROM users
                     WHERE id = :id
                 """),
@@ -92,11 +95,18 @@ class UserAuth:
 
     def __decode_token(self,token: str) -> str | None:
         try:
-            _secret_key = os.getenv("_SECRET_KEY")
+            # _secret_key = os.getenv("_SECRET_KEY")
+            unverified_header = jwt.get_unverified_header(token)
+            kid = unverified_header.get("kid")
+
+            if not kid or kid not in _XSECRET_KEYS:
+                raise ValueError("Geçersiz veya bilinmeyen bir anahtar kimliği.")
+
+            secret_key = _XSECRET_KEYS[kid]
 
             payload = jwt.decode(
                 token,
-                self._secret_key,
+                secret_key,
                 algorithms=[self._algorithm],
                 audience="ges-battery-api",
                 issuer="ges-battery",
@@ -116,7 +126,7 @@ class UserAuth:
         except jwt.ExpiredSignatureError:
             logger.warning("JWT süresi dolmuş.")
             return None
-        except jwt.InvalidTokenError as exc:
+        except (jwt.InvalidTokenError, ValueError) as exc:
             logger.warning(
                 "JWT doğrulama hatası: %s",
                 type(exc).__name__

@@ -31,3 +31,10 @@ class Config:
     _BOYLAM: Final[float] = 32.68773218167581
 
 settings = Config()
+
+_XSECRET_KEYS = {
+    "key_2026_02": os.getenv("_XSECRET_KEY_2"),
+    "key_2026_01": os.getenv("_XSECRET_KEY_1")
+}
+
+_ACTIVE_KEY_ID = "key_2026_02"

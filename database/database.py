@@ -75,7 +75,17 @@ def create_user_db(db, username: str, full_name: str, email: str, hashed_passwor
 
     return {"username": username, "email": email, "status": "Kullanıcı başarıyla oluşturuldu"}
 
+def get_user_role(db, username:str, email: str):
+    result = db.execute(
+        text(
+            """
+                SELECT role FROM users
+                WHERE username = :username AND email = :email
+            """
+        ), {"username": username, "email": email}
+    )
 
+    return result.mappings().first()
 
 
 

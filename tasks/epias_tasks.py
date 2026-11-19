@@ -11,7 +11,6 @@ from database.database import SessionLocal
 from tasks.celery_app import celery_app
 from api.services.epias import OOP_Epias
 from database.epias_ptf_db import save_epias_pt_data
-from celery.schedules import crontab
 
 
 logger = logging.getLogger(__name__)

@@ -11,10 +11,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 from fastapi.responses import JSONResponse
-
 from auth.auth import UserInDB, User, get_current_user, auth_client, get_current_active_user
-from database.database import get_db, get_user_db, get_user_by_email, get_user_role
-
+from database.database import get_db, get_user_db, get_user_by_email
 from hash.hash_pass import get_hashed_password, controle_hash_password
 from database.database import create_user_db
 

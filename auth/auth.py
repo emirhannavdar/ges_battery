@@ -1,6 +1,5 @@
 import hmac
 import logging
-import os
 import pathlib
 import jwt
 
@@ -15,7 +14,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from database.database import get_db, get_user_role
+from database.database import get_db
 from api.errors.exceptions import AuthenticationError, DomainError
 
 

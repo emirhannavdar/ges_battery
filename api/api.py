@@ -21,9 +21,9 @@ app = FastAPI(
 
     # swagger safasını erişime kapatır
 
-    #docs_url=None,
-    #redoc_url=None,
-    #openapi_url=None,
+    # docs_url=None,
+    # redoc_url=None,
+    # openapi_url=None,
 )
 
 app.add_exception_handler(AppError, app_error_handler)      # hataları global yakalar api de serverda kalmaz

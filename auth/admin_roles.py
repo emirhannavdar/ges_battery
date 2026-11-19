@@ -1,33 +1,40 @@
 from fastapi.params import Depends
 from fastapi import Depends
 from sqlalchemy.orm import Session
-from auth.auth import get_current_user
 from database.database import get_user_role, get_db
 from auth.auth import User, get_current_active_user
 from api.errors.exceptions import ForbiddenError
 
-def admin_require_roles():
-    def role_chek(
-            current_user: dict = Depends(get_current_user),
-            db: Session = Depends(get_db),
-            user: User = Depends(get_current_active_user)
-    ):
-        user_role = get_user_role(db, user.username, user.email)
+def require_roles(*allowed_roles: str):
 
-        if user_role.get("role") != "admin":
-            raise ForbiddenError("Bu işlem için ADMİN yetkisine ihtiyaç vardır.")
-        return current_user
-    return role_chek
+    def role_check(
+        user: User = Depends(get_current_active_user),
+        db: Session = Depends(get_db)
+    ):
+        user_role = get_user_role(
+            db,
+            user.username,
+            user.email
+        )
+
+        if not user_role:
+            raise ForbiddenError(
+                "Kullanıcıya ait rol bilgisi bulunamadı."
+            )
+
+        if user_role["role"] not in allowed_roles:
+            raise ForbiddenError(
+                "Bu işlem için yeterli yetkiniz bulunmuyor."
+            )
+
+        return user
+
+    return role_check
+
+
+def admin_require_roles():
+    return require_roles("admin")
+
 
 def operator_require_roles():
-    def role_chek(
-            current_user: dict = Depends(get_current_user),
-            db: Session = Depends(get_db),
-            user: User = Depends(get_current_active_user)
-    ):
-        user_role = get_user_role(db, user.username, user.email)
-
-        if user_role.get("role") != "operator" and user_role.get("role") != "admin":
-            raise ForbiddenError("Bu işlem için OPERATOR veya ADMİN yetkisine ihtiyaç vardır.")
-        return current_user
-    return role_chek
+    return require_roles("admin", "operator")

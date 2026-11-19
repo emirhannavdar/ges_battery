@@ -41,6 +41,7 @@ def test_auth_token():
 
         mock_get_user.return_value = {
             "id": 12,
+            "role": "admin",
             "username": "test",
             "hashed_password": "fake-hashed-password",
             "token_type": "Bearer",
@@ -104,6 +105,7 @@ def test_auth_token_disabled_user(authenticated_client):
     with patch("auth.auth_request.get_user_db") as mogic_db:
         mogic_db.return_value = {
             "id": -1,
+            "role": "admin",
             "username": "test-user",
             "full_name": "test user",
             "email": "test@test.com",
@@ -133,6 +135,7 @@ def test_auth_token_not_true_password(authenticated_client):
             patch("auth.auth_request.controle_hash_password", return_value=False):
         mogic_db.return_value = {
             "id": -1,
+            "role": "admin",
             "username": "test-user",
             "full_name": "test user",
             "email": "test@test.com",

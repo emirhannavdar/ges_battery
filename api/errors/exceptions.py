@@ -48,3 +48,20 @@ class WeatherDataError(AppError):
             ErrorCode.WEATHER_DATA_ERROR,
             502
         )
+
+class ForbiddenError(AppError):
+    def __init__( self,message: str):
+        super().__init__(
+            message,
+            ErrorCode.FORBIDDEN,
+            403
+        )
+
+
+
+
+
+
+
+
+

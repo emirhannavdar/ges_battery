@@ -70,6 +70,7 @@ def test_auth_sign(authenticated_client):
                 "/auth/sign",
                 json = {
                     "username": "test-user",
+                    "role": "viewer",
                     "full_name": "test user",
                     "email": "test_user@emirhannavdar.com",
                     "password": "123w4a561s2s3456asd145."

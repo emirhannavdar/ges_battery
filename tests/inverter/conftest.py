@@ -28,7 +28,7 @@ def authenticated_client():
 
     try:
         with patch(
-                "auth.roles.py.get_user_role",
+                "auth.roles.get_user_role",
             return_value={"role": "admin"}
         ):
             with TestClient(app) as client:

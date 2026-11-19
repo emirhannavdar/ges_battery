@@ -8,7 +8,7 @@ from database.database import get_db
 from api.errors.exceptions import DomainError
 from auth.auth import User, get_current_user, get_current_active_user
 from simulation.simulation_manager import SimulationManager
-from datetime import date, datetime, time, timedelta
+from datetime import date, time
 from database.simulation_repository import (
     save_daily_simulation,
     get_simulations_by_user,

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from fastapi.responses import JSONResponse
 
 from auth.auth import UserInDB, User, get_current_user, auth_client, get_current_active_user
-from database.database import get_db, get_user_db, get_user_by_email
+from database.database import get_db, get_user_db, get_user_by_email, get_user_role
 
 from hash.hash_pass import get_hashed_password, controle_hash_password
 from database.database import create_user_db
@@ -82,7 +82,7 @@ async def login(
 
     sayac = 0
 
-    token_data = auth_client._jwt_token(user_id=user_dict["id"])
+    token_data = auth_client._jwt_token(user_id=user_dict["id"], role=user_dict["role"])
 
     try:
         db.execute(

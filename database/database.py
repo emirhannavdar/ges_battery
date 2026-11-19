@@ -32,7 +32,7 @@ def get_db():
 def get_user_db(db, username: str):
     result = db.execute(
         text("""
-            SELECT id, username, full_name, email, hashed_password, disabled
+            SELECT id, username, full_name, email, hashed_password, disabled, role
             FROM users
             WHERE username = :username
         """),{"username": username}
@@ -86,6 +86,3 @@ def get_user_role(db, username:str, email: str):
     )
 
     return result.mappings().first()
-
-
-

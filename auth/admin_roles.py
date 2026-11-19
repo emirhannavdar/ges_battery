@@ -1,11 +1,9 @@
-from http.client import HTTPException
 from fastapi.params import Depends
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from sqlalchemy.orm import Session
 from auth.auth import get_current_user
 from database.database import get_user_role, get_db
 from auth.auth import User, get_current_active_user
-from api.response.response import _RestApi
 from api.errors.exceptions import ForbiddenError
 
 def admin_require_roles():

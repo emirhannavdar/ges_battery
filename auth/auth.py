@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from database.database import get_db
+from database.database import get_db, get_user_role
 from api.errors.exceptions import AuthenticationError, DomainError
 
 
@@ -30,16 +30,15 @@ logger = logging.getLogger(__name__)
 
 class User(BaseModel):
     id: int
-    role: str = "user"
+    role: str
     username: str
     email: str | None = None
     full_name: str | None = None
-    access_token: str | None = None
     disabled: bool | None = None
 
 
 class UserInDB(User):
-    hashed_password: str
+    hashed_password: str | None = None
     access_token: str | None = None
 
 
@@ -48,7 +47,7 @@ class UserAuth:
         self._secret_key = _XSECRET_KEYS[_ACTIVE_KEY_ID]
         self._algorithm = "HS512"
 
-    def _jwt_token(self, user_id: int, role: str = "user"):
+    def _jwt_token(self, user_id: int, role: str):
         now = datetime.now(timezone.utc)
         payload = {
             "sub": str(user_id),
@@ -76,7 +75,7 @@ class UserAuth:
         try:
             result = db.execute(
                 text("""
-                    SELECT id, username, full_name, email, access_token, hashed_password, role, disabled
+                    SELECT id, username, full_name, email, access_token, role, disabled
                     FROM users
                     WHERE id = :id
                 """),
@@ -87,7 +86,8 @@ class UserAuth:
 
             if user_dict is None:
                 return None
-            return User(**user_dict)
+
+            return UserInDB(**dict(user_dict))
 
         except SQLAlchemyError:
             logger.exception("Kullanıcı sorgusu başarısız")
@@ -155,16 +155,10 @@ class UserAuth:
         if user.disabled:
             raise AuthenticationError("Kullancı aktif değil")
 
-        if not user.access_token:
-            raise AuthenticationError("Aktif oturum bulunamadı.")
-
-        if not hmac.compare_digest(
-            token,
-            user.access_token
-        ):
+        if not user.access_token or not hmac.compare_digest(token, user.access_token):
             raise AuthenticationError("Bu token artık geçerli değil.")
 
-        return user
+        return User(**user.model_dump(exclude={"access_token", "hashed_password"}))
 
 
 auth_client = UserAuth()

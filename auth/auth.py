@@ -55,8 +55,8 @@ class UserAuth:
             "nbf": now,     # token başlangıç arih
             "exp": now + timedelta(minutes=60), # ne kadar zaman geçerli
             "jti": str(uuid4()),    # token'ın kimliği
-            "iss": "ges-battery",   # token'ı oluşturan sevişs
-            "aud": "ges-battery-api",   #tokenın kullanılacağı servis
+            "iss": "bayraktarsolar",   # token'ı oluşturan sevişs
+            "aud": "ges-api",   #tokenın kullanılacağı servis
             "type": "Bearer"
         }
 

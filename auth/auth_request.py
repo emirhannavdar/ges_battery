@@ -127,7 +127,7 @@ async def login(
     return {
         "access_token": access_token["token"],
         "token_type": "bearer",
-        "refresh_token": refresh_token_hash
+        "refresh_token": refresh_token["token"]
     }
 
 @auth.post('/refresh-access-token')
@@ -135,14 +135,29 @@ async def refresh_access_token(
     raw: RefreshToken,
     db: Annotated[Session, Depends(get_db)]
 ):
-    user = get_user_db_full(db, raw.refresh_token)
+    payload = auth_client._decode_refresh_token(
+        raw.refresh_token
+    )
 
-    if not user:
-        raise ForbiddenError("Kullanıcı bulunamadı. Refresh token'ı kontrol edin veya tekrardan giriş yapıp tekrardan token alın.")
+    try:
+        user_id = int(payload["sub"])
+    except (ValueError, TypeError, KeyError):
+        raise AuthenticationError("Geçersiz kullanıcı.")
 
-    if not hmac.compare_digest(
-        raw.refresh_token,
-        user["refresh_token_hash"]
+    user = get_user_db_full(db, user_id)
+
+    if user is None or user["disabled"]:
+        raise AuthenticationError("Kullanıcı aktif değil veya bulunamadı.")
+
+    incoming_hash = hashlib.sha256(
+        raw.refresh_token.encode("utf-8")
+    ).hexdigest()
+
+    stored_hash = user["refresh_token_hash"]
+
+    if (
+            not stored_hash
+            or not hmac.compare_digest(incoming_hash, stored_hash)
     ):
         raise AuthenticationError("Refresh token geçersiz.")
 
@@ -153,26 +168,35 @@ async def refresh_access_token(
     )
 
     try:
-        db.execute(
-            text(
-                """
+        result = db.execute(
+            text("""
                     UPDATE users
                     SET access_token = :access_token
                     WHERE id = :id
-                """
-            ), {
+                      AND refresh_token_hash = :refresh_hash
+                      AND disabled = FALSE
+                """),
+            {
                 "access_token": access_token["token"],
-                "id": user["id"]
+                "refresh_hash": incoming_hash,
+                "id": user_id
             }
         )
+
+        if result.rowcount != 1:
+            db.rollback()
+            raise AuthenticationError("Refresh token geçersiz.")
+
         db.commit()
+
     except SQLAlchemyError:
         db.rollback()
         raise
 
     return {
-        "username: ": user["username"],
-        "new_access_token: ": access_token["token"]
+        "username": user["username"],
+        "access_token": access_token["token"],
+        "token_type": "bearer"
     }
 
 

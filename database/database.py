@@ -88,13 +88,13 @@ def get_user_role(db, username:str, email: str):
 
     return result.mappings().first()
 
-def get_user_db_full(db, refresh_token_hash: str):
+def get_user_db_full(db, user_id: int):
     result = db.execute(
         text("""
-            SELECT id, username, disabled, refresh_token_hash, role
+            SELECT id, username, role, disabled, refresh_token_hash
             FROM users
-            WHERE refresh_token_hash = :refresh_token_hash
-        """),{"refresh_token_hash": refresh_token_hash}
+            WHERE id = :user_id
+        """),{"user_id": user_id}
     )
 
     return result.mappings().first()

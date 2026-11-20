@@ -58,7 +58,7 @@ class UserAuth:
             raise ValueError("Geçersiz token türü.")
 
         expires = (
-            timedelta(minutes=1)
+            timedelta(minutes=15)
             if token_type == "access"
             else timedelta(days=7)
         )
@@ -96,6 +96,45 @@ class UserAuth:
         )
 
         return {"token": token, "payload": payload}
+
+    def _decode_refresh_token(self, token: str) -> dict:
+        try:
+            unverified_header = jwt.get_unverified_header(token)
+            kid = unverified_header.get("kid")
+
+            if not kid or kid not in _XSECRET_KEYS:
+                raise AuthenticationError("Geçersiz anahtar kimliği.")
+
+            payload = jwt.decode(
+                token,
+                _XSECRET_KEYS[kid],
+                algorithms=[self._algorithm],
+                audience="ges-api",
+                issuer="bayraktarsolar",
+                options={
+                    "require": [
+                        "sub", "exp", "iat", "nbf",
+                        "jti", "iss", "aud", "type"
+                    ]
+                }
+            )
+
+            if payload.get("type") != "refresh":
+                raise AuthenticationError(
+                    "Bu token refresh token değil."
+                )
+
+            return payload
+
+        except jwt.ExpiredSignatureError:
+            raise AuthenticationError(
+                "Refresh token süresi doldu. Tekrar giriş yapın."
+            )
+
+        except jwt.InvalidTokenError:
+            raise AuthenticationError(
+                "Geçersiz refresh token."
+            )
 
     def __get_user(self, db: Session, user_id: int):
         try:
@@ -180,6 +219,13 @@ class UserAuth:
 
         if user.disabled:
             raise AuthenticationError("Kullancı aktif değil")
+
+        if not user.access_token or not hmac.compare_digest(
+                token, user.access_token
+        ):
+            raise AuthenticationError(
+                "Bu token artık geçerli değil."
+            )
 
         return User(
             **user.model_dump(

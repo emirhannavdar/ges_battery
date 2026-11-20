@@ -1,6 +1,5 @@
 import pytest
 
-from api.response import response
 from simulation.inverter import Inverter, InverterConfig, InverterStatus
 
 @pytest.fixture(autouse=True)

@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import logging
 import pathlib
 import string
@@ -11,8 +13,10 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 from fastapi.responses import JSONResponse
+
+from api.errors.exceptions import AuthenticationError, ForbiddenError
 from auth.auth import UserInDB, User, get_current_user, auth_client, get_current_active_user
-from database.database import get_db, get_user_db, get_user_by_email
+from database.database import get_db, get_user_db, get_user_by_email, get_user_db_full
 from hash.hash_pass import get_hashed_password, controle_hash_password
 from database.database import create_user_db
 from auth.roles import admin_require_roles, viewer_require_roles
@@ -36,6 +40,8 @@ class SignUpForm(BaseModel):
     password: str
     role: str
 
+class RefreshToken(BaseModel):
+    refresh_token: str
 
 @auth.post("/token")
 async def login(
@@ -81,16 +87,36 @@ async def login(
 
     sayac = 0
 
-    token_data = auth_client._jwt_token(user_id=user_dict["id"], role=user_dict["role"])
+    access_token = auth_client._jwt_token(
+        user_id=user_dict["id"],
+        role=user_dict["role"],
+        token_type="access"
+    )
+
+    refresh_token = auth_client._jwt_token(
+        user_id=user_dict["id"],
+        role=user_dict["role"],
+        token_type="refresh"
+    )
 
     try:
+        refresh_token_hash = hashlib.sha256(
+            refresh_token["token"].encode("utf-8")
+        ).hexdigest()
+
         db.execute(
             text("""
                     UPDATE users 
-                    SET access_token = :access_token 
+                    SET 
+                        access_token = :access_token, 
+                        refresh_token_hash = :refresh_token_hash
                     WHERE email = :email
                 """),
-            {"access_token": token_data["token"], "email": user.email},
+            {
+                "access_token": access_token["token"],
+                "refresh_token_hash":refresh_token_hash,
+                "email": user.email
+            },
         )
         db.commit()
 
@@ -99,12 +125,54 @@ async def login(
         raise
 
     return {
-        "access_token": token_data["token"],
-        "purchase date": token_data["payload"]["nbf"],
-        "final validity": token_data["payload"]["exp"],
-        "service": token_data["payload"]["iss"],
-        "token-type": token_data["payload"]["type"],
-        "email": user.email
+        "access_token": access_token["token"],
+        "token_type": "bearer",
+        "refresh_token": refresh_token_hash
+    }
+
+@auth.post('/refresh-access-token')
+async def refresh_access_token(
+    raw: RefreshToken,
+    db: Annotated[Session, Depends(get_db)]
+):
+    user = get_user_db_full(db, raw.refresh_token)
+
+    if not user:
+        raise ForbiddenError("Kullanıcı bulunamadı. Refresh token'ı kontrol edin veya tekrardan giriş yapıp tekrardan token alın.")
+
+    if not hmac.compare_digest(
+        raw.refresh_token,
+        user["refresh_token_hash"]
+    ):
+        raise AuthenticationError("Refresh token geçersiz.")
+
+    access_token = auth_client._jwt_token(
+        user_id=user["id"],
+        role=user["role"],
+        token_type="access"
+    )
+
+    try:
+        db.execute(
+            text(
+                """
+                    UPDATE users
+                    SET access_token = :access_token
+                    WHERE id = :id
+                """
+            ), {
+                "access_token": access_token["token"],
+                "id": user["id"]
+            }
+        )
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+
+    return {
+        "username: ": user["username"],
+        "new_access_token: ": access_token["token"]
     }
 
 

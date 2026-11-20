@@ -46,19 +46,47 @@ class UserAuth:
         self._secret_key = _XSECRET_KEYS[_ACTIVE_KEY_ID]
         self._algorithm = "HS512"
 
-    def _jwt_token(self, user_id: int, role: str):
+    def _jwt_token(
+            self,
+            user_id: int,
+            role: str,
+            token_type: str = "access"
+    ):
         now = datetime.now(timezone.utc)
-        payload = {
-            "sub": str(user_id),
-            "role": role,
-            "iat": now,     # alış tarihi
-            "nbf": now,     # token başlangıç arih
-            "exp": now + timedelta(minutes=60), # ne kadar zaman geçerli
-            "jti": str(uuid4()),    # token'ın kimliği
-            "iss": "bayraktarsolar",   # token'ı oluşturan sevişs
-            "aud": "ges-api",   #tokenın kullanılacağı servis
-            "type": "Bearer"
-        }
+
+        if token_type not in ("access", "refresh"):
+            raise ValueError("Geçersiz token türü.")
+
+        expires = (
+            timedelta(minutes=1)
+            if token_type == "access"
+            else timedelta(days=7)
+        )
+
+        if token_type == "access":
+            payload = {
+                "sub": str(user_id),
+                "role": role,
+                "iat": now,     # alış tarihi
+                "nbf": now,     # token başlangıç arih
+                "exp": now + expires, # ne kadar zaman geçerli
+                "jti": str(uuid4()),    # token'ın kimliği
+                "iss": "bayraktarsolar",   # token'ı oluşturan sevişs
+                "aud": "ges-api",   #tokenın kullanılacağı servis
+                "type": token_type
+            }
+        elif token_type == "refresh":
+            payload = {
+                "sub": str(user_id),
+                "role": role,
+                "iat": now,  # alış tarihi
+                "nbf": now,  # token başlangıç arih
+                "exp": now + expires,  # ne kadar zaman geçerli
+                "jti": str(uuid4()),  # token'ın kimliği
+                "iss": "bayraktarsolar",  # token'ı oluşturan sevişs
+                "aud": "ges-api",  # tokenın kullanılacağı servis
+                "type": token_type
+            }
 
         token = jwt.encode(
             payload,
@@ -68,7 +96,6 @@ class UserAuth:
         )
 
         return {"token": token, "payload": payload}
-
 
     def __get_user(self, db: Session, user_id: int):
         try:
@@ -107,8 +134,8 @@ class UserAuth:
                 token,
                 secret_key,
                 algorithms=[self._algorithm],
-                audience="ges-battery-api",
-                issuer="ges-battery",
+                audience="ges-api",
+                issuer="bayraktarsolar",
                 options={
                     "require": [
                         "sub", "exp", "iat", "nbf",
@@ -117,7 +144,7 @@ class UserAuth:
                 }
             )
 
-            if payload.get("type") != "Bearer":
+            if payload.get("type") != "access":
                 return None
 
             return payload.get("sub")
@@ -154,10 +181,11 @@ class UserAuth:
         if user.disabled:
             raise AuthenticationError("Kullancı aktif değil")
 
-        if not user.access_token or not hmac.compare_digest(token, user.access_token):
-            raise AuthenticationError("Bu token artık geçerli değil.")
-
-        return User(**user.model_dump(exclude={"access_token", "hashed_password"}))
+        return User(
+            **user.model_dump(
+                exclude={"access_token", "hashed_password"}
+            )
+        )
 
 
 auth_client = UserAuth()

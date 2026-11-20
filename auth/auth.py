@@ -176,9 +176,6 @@ class UserAuth:
             )
 
             if payload.get("type") != "access":
-                print("**************")
-                print("buraya girfi")
-                print("**************")
                 return None
 
             return payload
@@ -210,10 +207,6 @@ class UserAuth:
             )
 
         user = self.__get_user(db, user_id)
-
-
-        if user.current_access_jti != payload["jti"]:
-            raise AuthenticationError("Eski token kullanılıyor broski.")
 
         if user is None:
             raise DomainError("Kullanıcı bulunamadı.")

@@ -146,7 +146,6 @@ async def refresh_access_token(
     )
 
     try:
-        print("buraya girmedi kanka")
         db.execute(
             text("""
                     UPDATE users
@@ -158,7 +157,6 @@ async def refresh_access_token(
                 "id": user["id"],
             }
         )
-        print("db sorgusu bitti kanzi")
         db.commit()
     except SQLAlchemyError:
         db.rollback()

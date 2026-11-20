@@ -196,10 +196,11 @@ class UserAuth:
 
     async def authenticate_user(self, token: str, db: Session):
         payload = self.__decode_token(token)
-        user_id = payload.get("sub")
 
-        if user_id is None:
+        if payload is None:
             raise AuthenticationError("geçersiz veya süresi dolmuş token.")
+
+        user_id = payload.get("sub")
 
         try:
             user_id = int(user_id)

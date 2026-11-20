@@ -1,36 +1,32 @@
-import hashlib
-import hmac
 import logging
 import pathlib
 import string
 
+from datetime import datetime, timezone
 from typing import Annotated
-from fastapi import Depends, APIRouter, HTTPException
+from uuid import UUID
+
+from fastapi import Depends, APIRouter, HTTPException, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from dotenv import load_dotenv
 from pydantic import BaseModel
-from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 from fastapi.responses import JSONResponse
-
-from api.errors.exceptions import AuthenticationError, ForbiddenError
-from auth.auth import UserInDB, User, get_current_user, auth_client, get_current_active_user
+from api.errors.exceptions import AuthenticationError
+from auth.auth import UserInDB, User, get_current_user, auth_client, get_current_active_user, refresh_token_scheme
 from database.database import get_db, get_user_db, get_user_by_email, get_user_db_full
 from hash.hash_pass import get_hashed_password, controle_hash_password
 from database.database import create_user_db
 from auth.roles import admin_require_roles, viewer_require_roles
-
-
+from sqlalchemy import text
 
 BASE_DIR = pathlib.Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / '.env')
 
-
 auth = APIRouter()
 
 logger = logging.getLogger(__name__)
-
 sayac = 0
 
 class SignUpForm(BaseModel):
@@ -40,11 +36,9 @@ class SignUpForm(BaseModel):
     password: str
     role: str
 
-class RefreshToken(BaseModel):
-    refresh_token: str
-
 @auth.post("/token")
 async def login(
+        response: Response,
         form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
         db: Annotated[Session, Depends(get_db)],
 
@@ -92,37 +86,29 @@ async def login(
         role=user_dict["role"],
         token_type="access"
     )
+    try:
+        db.execute(
+            text("""
+                    UPDATE users
+                    SET current_access_jti = :current_access_jti
+                    WHERE id = :id
+                """
+            ), {
+                "current_access_jti": UUID(access_token["payload"]["jti"]),
+                "id": user_dict["id"],
+            }
+        )
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        logger.exception("Access token JTI kaydedilemedi.")
+        raise
 
     refresh_token = auth_client._jwt_token(
         user_id=user_dict["id"],
         role=user_dict["role"],
         token_type="refresh"
     )
-
-    try:
-        refresh_token_hash = hashlib.sha256(
-            refresh_token["token"].encode("utf-8")
-        ).hexdigest()
-
-        db.execute(
-            text("""
-                    UPDATE users 
-                    SET 
-                        access_token = :access_token, 
-                        refresh_token_hash = :refresh_token_hash
-                    WHERE email = :email
-                """),
-            {
-                "access_token": access_token["token"],
-                "refresh_token_hash":refresh_token_hash,
-                "email": user.email
-            },
-        )
-        db.commit()
-
-    except SQLAlchemyError:
-        db.rollback()
-        raise
 
     return {
         "access_token": access_token["token"],
@@ -132,12 +118,19 @@ async def login(
 
 @auth.post('/refresh-access-token')
 async def refresh_access_token(
-    raw: RefreshToken,
-    db: Annotated[Session, Depends(get_db)]
+    refresh_token: Annotated[
+        str | None,
+        Depends(refresh_token_scheme)
+    ],
+    db: Session = Depends(get_db)
 ):
-    payload = auth_client._decode_refresh_token(
-        raw.refresh_token
-    )
+    if not refresh_token:
+        raise AuthenticationError("Refresh token bulunamadı")
+
+    payload = auth_client._decode_refresh_token(refresh_token)
+
+    if not refresh_token:
+        raise AuthenticationError("Refresh token bulunamadı")
 
     try:
         user_id = int(payload["sub"])
@@ -146,21 +139,6 @@ async def refresh_access_token(
 
     user = get_user_db_full(db, user_id)
 
-    if user is None or user["disabled"]:
-        raise AuthenticationError("Kullanıcı aktif değil veya bulunamadı.")
-
-    incoming_hash = hashlib.sha256(
-        raw.refresh_token.encode("utf-8")
-    ).hexdigest()
-
-    stored_hash = user["refresh_token_hash"]
-
-    if (
-            not stored_hash
-            or not hmac.compare_digest(incoming_hash, stored_hash)
-    ):
-        raise AuthenticationError("Refresh token geçersiz.")
-
     access_token = auth_client._jwt_token(
         user_id=user["id"],
         role=user["role"],
@@ -168,35 +146,30 @@ async def refresh_access_token(
     )
 
     try:
-        result = db.execute(
+        print("buraya girmedi kanka")
+        db.execute(
             text("""
                     UPDATE users
-                    SET access_token = :access_token
+                    SET current_access_jti = :current_access_jti
                     WHERE id = :id
-                      AND refresh_token_hash = :refresh_hash
-                      AND disabled = FALSE
-                """),
-            {
-                "access_token": access_token["token"],
-                "refresh_hash": incoming_hash,
-                "id": user_id
+                """
+            ), {
+                "current_access_jti": UUID(access_token["payload"]["jti"]),
+                "id": user["id"],
             }
         )
-
-        if result.rowcount != 1:
-            db.rollback()
-            raise AuthenticationError("Refresh token geçersiz.")
-
+        print("db sorgusu bitti kanzi")
         db.commit()
-
     except SQLAlchemyError:
         db.rollback()
+        logger.exception("Access token JTI kaydedilemedi.")
         raise
 
     return {
         "username": user["username"],
         "access_token": access_token["token"],
-        "token_type": "bearer"
+        "token_type": "bearer",
+        "jti-access_token": access_token["payload"]["jti"]
     }
 
 
@@ -206,7 +179,7 @@ def sign_up(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
         active_user: User = Depends(get_current_active_user),
-        user: dict = Depends(admin_require_roles())
+        user: dict = Depends(admin_require_roles()),
 ):
     existing_user = get_user_db(db, raw.username)
     if existing_user:

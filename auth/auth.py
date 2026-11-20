@@ -4,7 +4,7 @@ import pathlib
 import jwt
 
 from api.config.config import _ACTIVE_KEY_ID, _XSECRET_KEYS
-from uuid import uuid4
+from uuid import uuid4, UUID
 from datetime import timedelta, datetime, timezone
 from typing import Annotated
 from dotenv import load_dotenv
@@ -16,13 +16,19 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from database.database import get_db
 from api.errors.exceptions import AuthenticationError, DomainError
+from fastapi.security import APIKeyHeader
 
+refresh_token_scheme = APIKeyHeader(
+    name="X-Refresh-Token",
+    scheme_name="RefreshToken",
+    description="Refresh JWT Token",
+    auto_error=False
+)
 
 BASE_DIR = pathlib.Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / '.env')
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
-
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +41,10 @@ class User(BaseModel):
     full_name: str | None = None
     disabled: bool | None = None
 
-
 class UserInDB(User):
     hashed_password: str | None = None
-    access_token: str | None = None
+    current_access_jti: UUID | None = None
+    current_refresh_jti: UUID | None = None
 
 
 class UserAuth:
@@ -63,30 +69,17 @@ class UserAuth:
             else timedelta(days=7)
         )
 
-        if token_type == "access":
-            payload = {
-                "sub": str(user_id),
-                "role": role,
-                "iat": now,     # alış tarihi
-                "nbf": now,     # token başlangıç arih
-                "exp": now + expires, # ne kadar zaman geçerli
-                "jti": str(uuid4()),    # token'ın kimliği
-                "iss": "bayraktarsolar",   # token'ı oluşturan sevişs
-                "aud": "ges-api",   #tokenın kullanılacağı servis
-                "type": token_type
-            }
-        elif token_type == "refresh":
-            payload = {
-                "sub": str(user_id),
-                "role": role,
-                "iat": now,  # alış tarihi
-                "nbf": now,  # token başlangıç arih
-                "exp": now + expires,  # ne kadar zaman geçerli
-                "jti": str(uuid4()),  # token'ın kimliği
-                "iss": "bayraktarsolar",  # token'ı oluşturan sevişs
-                "aud": "ges-api",  # tokenın kullanılacağı servis
-                "type": token_type
-            }
+        payload = {
+            "sub": str(user_id),
+            "role": role,
+            "iat": now,     # alış tarihi
+            "nbf": now,     # token başlangıç arih
+            "exp": now + expires, # ne kadar zaman geçerli
+            "jti": str(uuid4()),    # token'ın kimliği
+            "iss": "bayraktarsolar",   # token'ı oluşturan sevişs
+            "aud": "ges-api",   #tokenın kullanılacağı servis
+            "type": token_type
+        }
 
         token = jwt.encode(
             payload,
@@ -140,7 +133,7 @@ class UserAuth:
         try:
             result = db.execute(
                 text("""
-                    SELECT id, username, full_name, email, access_token, role, disabled
+                    SELECT id, username, full_name, email, role, disabled, current_access_jti, current_refresh_jti
                     FROM users
                     WHERE id = :id
                 """),
@@ -160,7 +153,6 @@ class UserAuth:
 
     def __decode_token(self,token: str) -> str | None:
         try:
-            # _secret_key = os.getenv("_SECRET_KEY")
             unverified_header = jwt.get_unverified_header(token)
             kid = unverified_header.get("kid")
 
@@ -184,9 +176,12 @@ class UserAuth:
             )
 
             if payload.get("type") != "access":
+                print("**************")
+                print("buraya girfi")
+                print("**************")
                 return None
 
-            return payload.get("sub")
+            return payload
 
         except jwt.ExpiredSignatureError:
             logger.warning("JWT süresi dolmuş.")
@@ -200,7 +195,8 @@ class UserAuth:
 
 
     async def authenticate_user(self, token: str, db: Session):
-        user_id = self.__decode_token(token)
+        payload = self.__decode_token(token)
+        user_id = payload.get("sub")
 
         if user_id is None:
             raise AuthenticationError("geçersiz veya süresi dolmuş token.")
@@ -214,22 +210,19 @@ class UserAuth:
 
         user = self.__get_user(db, user_id)
 
+
+        if user.current_access_jti != payload["jti"]:
+            raise AuthenticationError("Eski token kullanılıyor broski.")
+
         if user is None:
             raise DomainError("Kullanıcı bulunamadı.")
 
         if user.disabled:
             raise AuthenticationError("Kullancı aktif değil")
 
-        if not user.access_token or not hmac.compare_digest(
-                token, user.access_token
-        ):
-            raise AuthenticationError(
-                "Bu token artık geçerli değil."
-            )
-
         return User(
             **user.model_dump(
-                exclude={"access_token", "hashed_password"}
+                exclude={"hashed_password"}
             )
         )
 

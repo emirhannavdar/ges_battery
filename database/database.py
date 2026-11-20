@@ -91,7 +91,7 @@ def get_user_role(db, username:str, email: str):
 def get_user_db_full(db, user_id: int):
     result = db.execute(
         text("""
-            SELECT id, username, role, disabled, refresh_token_hash
+            SELECT id, username, role, disabled
             FROM users
             WHERE id = :user_id
         """),{"user_id": user_id}

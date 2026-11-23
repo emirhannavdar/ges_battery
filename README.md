@@ -1,517 +1,315 @@
+# GES Battery
 
-# GES Battery | Solar Energy Data & Simulation Project
+**Solar energy data integration, inverter simulation and monitoring-oriented software**
 
-GES Battery is a Python-based project I'm developing to bring together data collection, API management, and simulation processes for solar energy systems.
+GES Battery is an actively developed full-stack project that combines electricity market prices, meteorological data and a stateful photovoltaic (PV) simulation engine. Its backend is built with FastAPI and PostgreSQL; a Next.js interface provides workflows for running and comparing daily simulations.
 
-The project integrates electricity market data from EPİAŞ and weather data from Visual Crossing. It also includes an inverter simulation module, user authentication, and database operations.
+> **Status:** Active development / prototype. The repository is not yet a production-ready SCADA or battery-management system. Calculated values are simulation outputs, not measurements from physical equipment. Some authentication, background-task and multi-site workflows still require hardening; see [Known limitations](#known-limitations-and-roadmap).
 
-My main goal is to build a structured backend that makes data from different sources accessible through a REST API and provides a foundation for calculations and simulations related to solar energy systems.
+## Features
 
-> **Project Status:** Active development. I'm continuing to improve the API architecture, simulation modules, database operations, and automated testing infrastructure.
+- **EPİAŞ integration:** TGT-based authentication and PTF/KPTF electricity market data retrieval; PTF data persistence.
+- **Visual Crossing integration:** Weather data retrieval using latitude/longitude and database persistence.
+- **PV inverter simulation:** Irradiance- and temperature-dependent output, AC/DC limits, inverter state and injected fault scenarios.
+- **Power system components:** Energy analyzer, transformer and energy quality controller (EKK), including active-power limitation, reactive-power control and curtailment calculations.
+- **Stateful simulation sessions:** UUID-based sessions associated with an authenticated user; state serialization to PostgreSQL and row-level locking during updates.
+- **Daily simulation and comparison:** Run a 24-hour scenario, store hourly results, review previous runs and compare grid-energy outputs.
+- **Authentication and authorization:** JWT access/refresh tokens, password hashing and role-based access (`admin`, `operator`, `viewer`).
+- **Scheduled data collection:** Celery workers and Redis broker for EPİAŞ and weather ingestion tasks.
+- **Web interface:** Next.js dashboard for daily simulation, history, comparison and results.
 
-## Table of Contents
+## Technology stack
 
-- [Project Overview](#project-overview)
-- [Technologies](#technologies)
-- [Project Structure](#project-structure)
-- [API and Services](#api-and-services)
-- [Inverter Simulation](#inverter-simulation)
-- [Authentication and Database](#authentication-and-database)
-- [Installation](#installation)
-- [Environment Variables](#environment-variables)
-- [Running the Application](#running-the-application)
-- [Testing](#testing)
-- [GitHub Actions](#github-actions)
-- [Development Notes](#development-notes)
-- [Version History](#version-history)
-
-## Project Overview
-
-While developing this project, I wanted to avoid keeping API requests, business logic, database operations, and calculations in the same files.
-
-Instead, I organized the application into separate layers. API endpoints handle incoming HTTP requests, service classes communicate with external APIs, and database operations, authentication, and simulation logic are managed independently.
-
-The project currently focuses on the following areas:
-
-- **EPİAŞ Integration:** Retrieving electricity market data through external API services.
-- **Visual Crossing Integration:** Collecting weather and solar-related meteorological data based on geographical coordinates.
-- **Inverter Simulation:** Calculating inverter power output under different environmental and operating conditions.
-- **Authentication:** Managing JWT-based authentication and protected API endpoints.
-- **Database:** Managing application data through SQLAlchemy and PostgreSQL.
-- **Testing and CI:** Running automated tests with pytest and GitHub Actions.
-
-The overall structure is designed to make it easier to maintain existing features and add new functionality without making unnecessary changes to unrelated parts of the project.
-
-## Technologies
-
-| Technology | Purpose |
+| Layer | Technologies |
 | --- | --- |
-| Python 3.12+ | Main programming language |
-| FastAPI | REST API development |
-| Pydantic | Request and response validation |
-| Requests | Communication with external APIs |
-| SQLAlchemy | Database access and management |
-| PostgreSQL | Relational database used in development |
-| PyJWT | JWT authentication |
-| pwdlib / Argon2 | Password hashing |
-| pytest | Automated testing |
-| unittest.mock | Mocking external services and database operations |
-| uv | Dependency and virtual environment management |
-| GitHub Actions | Continuous Integration (CI) |
+| Backend | Python 3.12+, FastAPI, Pydantic, Requests |
+| Persistence | PostgreSQL, SQLAlchemy, SQL queries |
+| Authentication | PyJWT (HS512), pwdlib/Argon2, role dependencies |
+| Cache and jobs | Redis, Celery, Celery Beat |
+| Simulation | Python-based inverter, analyzer, transformer and EKK models |
+| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS 4, ECharts, Zod |
+| Tooling | uv, pytest, GitHub Actions, npm |
 
-Project dependencies are managed through `pyproject.toml`, while `uv.lock` is used to keep dependency installations consistent across environments.
-
-## Project Structure
+## Architecture
 
 ```text
-ges_battery/
-├── .github/
-│   └── workflows/          # GitHub Actions workflows
+                    +-----------------------+
+                    | Next.js web dashboard |
+                    +-----------+-----------+
+                                |
+                                | HTTP / cookie-based session proxy
+                                v
+                    +-----------------------+
+                    | FastAPI REST backend  |
+                    +-----------+-----------+
+                                |
+             +------------------+------------------+
+             |                  |                  |
+             v                  v                  v
+       Auth / RBAC        External APIs      Simulation API
+       JWT tokens         EPİAŞ / Weather    UUID sessions
+             |                  |                  |
+             +------------------+------------------+
+                                |
+                                v
+                          PostgreSQL
+                    users / weather / prices
+                    simulation state / results
+
+        Celery Beat --> Redis broker --> Celery workers
+                                         |          |
+                                         v          v
+                                       EPİAŞ     Weather
+```
+
+The simulation engine is implemented separately from the HTTP layer. The API loads session state, runs the appropriate simulation operation and persists the updated state.
+
+## Repository layout
+
+```text
+.
+├── .github/workflows/       # GitHub Actions
 ├── api/
-│   ├── endpoints/          # API route handlers
-│   ├── services/           # EPİAŞ and Visual Crossing services
-│   ├── config/             # Application configuration
-│   ├── errors/             # Error handling
-│   └── api.py              # FastAPI application
-├── auth/                   # JWT authentication
-├── database/               # Database connection and operations
-├── frontend/               # Frontend files
-├── hash/                   # Password hashing
-├── simulation/             # Inverter simulation
-├── static/                 # Static files
-├── tests/
-│   ├── apis/               # API tests
-│   └── inverter/           # Inverter tests
-├── .gitignore
+│   ├── api.py               # FastAPI application and router registration
+│   ├── config/              # Configuration and logging
+│   ├── endpoints/           # EPİAŞ, weather and simulation routes
+│   ├── errors/              # Application errors and handlers
+│   ├── response/            # API response models
+│   └── services/            # External API clients and token management
+├── auth/                    # JWT, authentication endpoints and RBAC
+├── database/                # SQLAlchemy connection and repositories
+├── frontend/                # Next.js application
+├── hash/                    # Password hashing
+├── simulation/              # Inverter, analyzer, transformer, EKK, clock
+├── tasks/                   # Celery application and collection tasks
+├── tests/                   # API and simulation tests
 ├── pyproject.toml
 ├── uv.lock
 └── README.md
 ```
 
-I separated these components to keep the code easier to maintain.
+## API overview
 
-For example, when I need to change how an external API request is made, I can update the related service without having to rewrite the endpoint logic.
-
-Similarly, simulation calculations can be developed and tested independently of the API layer.
-
-## API and Services
-
-### EPİAŞ Integration
-
-The EPİAŞ integration is used to retrieve electricity market data.
-
-This part of the project includes TGT token management and endpoints for querying PTF and KPTF data.
-
-| Endpoint | Method | Description |
-| --- | --- | --- |
-| `/api/v1/epias/token` | `POST` | Handles the EPİAŞ TGT token operation |
-| `/api/v1/epias/PTF` | `POST` | Retrieves PTF electricity market data |
-| `/api/v1/epias/KPTF` | `POST` | Retrieves KPTF electricity market data |
-
-PTF requests use the `startDate` and `endDate` parameters, while KPTF requests use `startDate`.
-
-Date values must follow the format expected by the EPİAŞ service.
-
-#### Service Architecture
-
-The EPİAŞ integration uses a dedicated service class to manage external requests.
-
-The service layer handles:
-
-- Creating HTTP requests.
-- Preparing request headers and parameters.
-- Managing authentication tokens.
-- Communicating with EPİAŞ endpoints.
-- Handling external service errors.
-- Returning data to the API layer.
-
-This keeps the endpoint code focused on processing incoming requests and returning responses.
-
-### Visual Crossing Integration
-
-The Visual Crossing integration retrieves weather data for a given location using latitude and longitude.
-
-| Endpoint | Method | Description |
-| --- | --- | --- |
-| `/api/v1/visual_crossing` | `GET` | Retrieves weather data |
-| `/api/v1/visual_crossing/weather/full` | `GET` | Retrieves more detailed weather data |
-
-Example request:
-
-```http
-GET /api/v1/visual_crossing?enlem=39.97&boylam=32.68
-```
-
-Depending on the requested data, the response can include:
-
-- Date and time information.
-- Temperature.
-- Cloud coverage.
-- Solar radiation.
-- Solar energy.
-- Hourly weather measurements.
-- Additional meteorological information.
-
-These values are useful when working with solar energy calculations, since weather conditions directly affect the amount of energy a photovoltaic system can produce.
-
-#### Weather Data Storage
-
-The project also includes database operations for storing weather data.
-
-I separated the database logic from the weather service so that API communication and data persistence can be handled independently.
-
-This separation is particularly useful during testing because database writes can be mocked without affecting the behavior being tested in an API endpoint.
-
-### API Responses and Error Handling
-
-I use a structured response format to keep API responses consistent.
-
-The response structure includes fields such as:
-
-| Field | Description |
-| --- | --- |
-| `success` | Indicates whether the request was successful |
-| `data` | Contains the returned data |
-| `timestamp` | Time associated with the response |
-| `errorCode` | Error code when applicable |
-| `message` | Additional information about the response |
-
-The project also includes centralized error-handling components for application errors and external service failures.
-
-Logging is used to make it easier to identify problems, especially when communicating with external services.
-
-## Inverter Simulation
-
-The `simulation/` directory contains the inverter simulation logic.
-
-This module is responsible for calculating inverter behavior under different operating conditions.
-
-The simulation considers conditions such as solar irradiance, temperature, power limitations, and inverter operating states.
-
-The main scenarios covered by the tests include:
-
-- Available power calculation.
-- Zero and negative irradiance values.
-- AC power limits.
-- DC power calculations.
-- Temperature correction factors.
-- Inverter `OFF` state.
-- Inverter `FAULT` state.
-- Step-by-step simulation behavior.
-- Minimum irradiance conditions.
-- Ensuring power calculations do not unexpectedly modify stored energy state.
-
-I wanted the simulation to handle more than just normal operating conditions.
-
-For that reason, I also added tests for boundary values and situations where the inverter should not generate power.
-
-### Simulation Testing
-
-The inverter tests are located in:
-
-```text
-tests/inverter/
-```
-
-These tests help verify that changes to the simulation logic do not break previously working calculations.
-
-The simulation module can also be tested independently of external API connections.
-
-## Authentication and Database
+All routes below are relative to the FastAPI server. Authentication is required for protected endpoints; access also depends on the user's role.
 
 ### Authentication
 
-The project uses JWT-based authentication to control access to protected API endpoints.
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `POST` | `/auth/token` | Log in and receive access/refresh tokens |
+| `POST` | `/auth/refresh-access-token` | Obtain a new access token from a refresh token |
+| `POST` | `/auth/sign` | Register a user (admin role required) |
+| `GET` | `/auth/users/me` | Read the authenticated user's profile |
 
-Authentication-related operations are handled separately from the main API services.
+### External data
 
-The authentication system uses:
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/v1/epias/token` | Request EPİAŞ TGT (currently returns raw token; see limitations) |
+| `POST` | `/api/v1/epias/PTF` | Retrieve and persist PTF data |
+| `POST` | `/api/v1/epias/KPTF` | Retrieve KPTF data |
+| `GET` | `/api/v1/visual_crossing` | Retrieve and store weather data |
+| `GET` | `/api/v1/visual_crossing/weather/full` | Retrieve detailed weather data |
 
-- PyJWT for token operations.
-- Password hashing through `pwdlib` with Argon2 support.
-- FastAPI dependencies for checking authenticated users.
-- Protected endpoints that require authentication.
+### Stateful inverter sessions
 
-The goal is to keep authentication logic reusable across different API routes.
+These endpoints use a **UUID** `simulation_id`, and session operations are restricted to the owning user.
 
-### Database
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `POST` | `/inverter/sessions` | Create a session |
+| `GET` | `/inverter/sessions/{simulation_id}` | Read session metadata |
+| `POST` | `/inverter/sessions/{simulation_id}/start` | Start a created session |
+| `POST` | `/inverter/sessions/{simulation_id}/step` | Advance the simulation using stored weather data |
+| `POST` | `/inverter/sessions/{simulation_id}/reset` | Reset the session |
+| `POST` | `/inverter/sessions/{simulation_id}/fault` | Inject an inverter fault |
+| `POST` | `/inverter/sessions/{simulation_id}/fault/reset/{inverter_id}` | Clear an inverter fault |
+| `GET` | `/inverter/sessions/{simulation_id}/data` | Retrieve inverter data |
 
-Database operations are handled through SQLAlchemy.
+Create a session with:
 
-I use PostgreSQL in my local development environment.
+```http
+POST /inverter/sessions
+Authorization: Bearer <ACCESS_TOKEN>
+Content-Type: application/json
 
-The database layer is responsible for managing connections and handling application data.
+{"inverter_count": 3}
+```
 
-Database connection settings are read from environment variables instead of being hardcoded directly into the source code.
+A successful creation returns `201 Created` and a `simulation_id`. Use that UUID in subsequent session requests. For a step request, the body includes `hangi_gun`, `saat_kac` and `dt_seconds`:
 
-This makes it easier to use different configurations for development and testing.
+```json
+{
+  "hangi_gun": "2026-11-23",
+  "saat_kac": "11:00:00",
+  "dt_seconds": 3600
+}
+```
 
-### Security Considerations
+The requested weather record must exist in the database. The session must be started before it can be stepped forward.
 
-Sensitive configuration values should never be committed to the repository.
+### Daily simulations and saved history
 
-These include:
+The **daily history ID is an integer**, distinct from the UUID used for stateful sessions.
 
-- API keys.
-- Database credentials.
-- JWT secret keys.
-- External service usernames and passwords.
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `POST` | `/inverter/daily` | Run and persist a daily scenario |
+| `GET` | `/inverter/simulations` | List the current user's saved daily runs |
+| `GET` | `/inverter/simulations/{simulation_id}` | Get a saved daily run by integer ID |
+| `GET` | `/inverter/simulations/compare` | Compare two saved daily runs |
 
-Each environment should use its own configuration values.
+Example daily request:
 
-## Installation
+```json
+{
+  "simulation_date": "2026-11-23",
+  "inverter_count": 3,
+  "inverter_ac_rated_kw": 900,
+  "inverter_dc_rated_kw": 1000,
+  "ekk_active_power_limit_kw": 800
+}
+```
+
+A daily simulation requires a complete set of 24 hourly weather records for the requested date. To compare two saved runs, call:
+
+```http
+GET /inverter/simulations/compare?simulation_id_1=1&simulation_id_2=2
+Authorization: Bearer <ACCESS_TOKEN>
+```
+
+## Local development
 
 ### Requirements
 
-Before running the project, make sure the following tools are available:
+- Python 3.12 or newer and [uv](https://docs.astral.sh/uv/)
+- PostgreSQL
+- Redis (for token caching and Celery)
+- Node.js and npm (for the frontend)
+- EPİAŞ and Visual Crossing credentials for real external API calls
 
-- Python 3.12 or newer.
-- Git.
-- uv.
-- PostgreSQL for features that require database access.
-- Valid credentials for external services when making real API requests.
+### 1. Clone and install backend dependencies
 
-### 1. Clone the Repository
-
-```bash
+```powershell
 git clone https://github.com/emirhannavdar/ges_battery.git
 cd ges_battery
-```
-
-### 2. Install Dependencies
-
-The project uses `uv` for dependency management.
-
-Install the dependencies with:
-
-```bash
 uv sync --frozen
 ```
 
-This installs the dependencies according to the existing `uv.lock` file.
+### 2. Configure environment variables
 
-### 3. Configure the Environment
-
-Create a `.env` file in the project root directory and configure the required environment variables.
-
-The application needs valid configuration values for external APIs, authentication, and database access.
-
-## Environment Variables
-
-The following variables are used in the project configuration:
+Create a `.env` file in the project root. Use your own credentials and connection details:
 
 ```dotenv
-_VISUAL_CROSSING_API_KEY=your-visual-crossing-api-key
-_VISUAL_CROSSING_BASE_URI=your-visual-crossing-base-url
+_DATABASE_URL=postgresql+psycopg2://USER:PASSWORD@127.0.0.1:5432/DATABASE
+_REDIS_URL=redis://127.0.0.1:6379/0
 
-_EPIAS_BASE_URI=your-epias-base-url
-_TGT_URL=your-tgt-endpoint
-_PTF_ENDPOINT=your-ptf-endpoint
-_KPTF_ENDPOINT=your-kptf-endpoint
+_VISUAL_CROSSING_API_KEY=YOUR_KEY
+_VISUAL_CROSSING_BASE_URI=YOUR_VISUAL_CROSSING_BASE_URL
 
-_EPIAS_USERNAME=your-epias-username
-_EPIAS_PASSWORD=your-epias-password
+_EPIAS_BASE_URI=YOUR_EPIAS_BASE_URL
+_TGT_URL=YOUR_EPIAS_TGT_URL
+_PTF_ENDPOINT=YOUR_PTF_ENDPOINT_PATH
+_KPTF_ENDPOINT=YOUR_KPTF_ENDPOINT_PATH
+_EPIAS_USERNAME=YOUR_EPIAS_USERNAME
+_EPIAS_PASSWORD=YOUR_EPIAS_PASSWORD
 
-_HASH_PASSWORD=your-hash-configuration
-_DATABASE_URL=postgresql+psycopg://user:password@localhost:5432/database_name
-_SECRET_KEY=your-long-random-secret-key
+_HASH_PASSWORD=YOUR_PASSWORD_HASH_CONFIGURATION
+_XSECRET_KEY_1=YOUR_PREVIOUS_JWT_SIGNING_SECRET
+_XSECRET_KEY_2=YOUR_ACTIVE_JWT_SIGNING_SECRET
 ```
 
-These are example values and must be replaced with the correct configuration for the environment.
+**Important:** The database URL is an example, not a provisioned database. The repository does not currently provide a complete schema migration/bootstrap process. Create the required PostgreSQL tables (`users`, `weather_data`, `simulation_sessions`, daily simulation tables and EPİAŞ price tables) according to the application SQL before using database-backed endpoints. Ensure the appropriate PostgreSQL driver is installed for your chosen URL; add it to project dependencies if needed.
 
-The database connection string must use a driver supported by the installed project dependencies.
+Do not commit `.env`, credentials, signing secrets or actual tokens to Git.
 
-The `.env` loading method must also match the application's configuration code.
+### 3. Start the backend
 
-**Important:** Do not commit the `.env` file or any real credentials to GitHub.
-
-## Running the Application
-
-After installing the dependencies and configuring the environment, start the FastAPI application:
-
-```bash
-uv run uvicorn api.api:app --reload --host 127.0.0.1 --port 8001
+```powershell
+uv run uvicorn api.api:app --reload --host 127.0.0.1 --port 8000
 ```
 
-The API will be available at:
+API documentation: `http://127.0.0.1:8000/docs`
 
-```text
-http://127.0.0.1:8001
+### 4. Start the frontend
+
+```powershell
+cd frontend
+npm ci
+Copy-Item .env.example .env.local
+npm run dev
 ```
 
-### API Documentation
+The frontend's default `BACKEND_URL` is `http://127.0.0.1:8000`. The local web app is available at `http://localhost:3000`.
 
-FastAPI provides interactive API documentation.
+Optional frontend checks:
 
-Swagger UI:
-
-```text
-http://127.0.0.1:8001/docs
+```powershell
+npm run typecheck
+npm run lint
+npm run build
 ```
 
-ReDoc:
+### 5. Run background workers (optional)
 
-```text
-http://127.0.0.1:8001/redoc
+Start Redis and run Celery worker and scheduler in separate terminals:
+
+```powershell
+uv run celery -A tasks.celery_app:celery_app worker --loglevel=info --pool=solo
 ```
 
-These pages can be used to inspect endpoints, review request parameters, and test API requests.
-
-If the `uvicorn` command is unavailable, check whether the package is installed in the project environment.
-
-## Testing
-
-I use pytest to test the API endpoints and inverter simulation logic.
-
-The tests are organized into separate directories:
-
-```text
-tests/
-├── apis/
-│   ├── conftest.py
-│   ├── test_epias.py
-│   └── test_visual_crossing.py
-└── inverter/
-    ├── test_inverter_calculate_available_power.py
-    └── test_inverter_step.py
+```powershell
+uv run celery -A tasks.celery_app:celery_app beat --loglevel=info
 ```
 
-### Running All Tests
+The current Beat configuration schedules EPİAŞ collection daily at **14:10 Europe/Istanbul** and weather collection every **two weeks**. The EPİAŞ task currently needs its `OOP_Epias` token-manager dependency fixed before it can run successfully.
 
-```bash
+## Testing and CI
+
+Run the Python test suite:
+
+```powershell
 uv run python -m pytest -v
 ```
 
-### Running API Tests
+Run only the inverter-related tests:
 
-```bash
-uv run python -m pytest tests/apis -v
-```
-
-### Running Inverter Tests
-
-```bash
+```powershell
 uv run python -m pytest tests/inverter -v
 ```
 
-### API Testing Approach
+GitHub Actions executes pytest on pushes and pull requests targeting `main`. Its current test environment uses mock credentials and a placeholder Redis URL; it does **not** provision a real PostgreSQL/Redis integration environment. Passing unit tests should not be treated as proof that the production database and background workers are configured correctly.
 
-For API tests, I use `MagicMock`, `patch`, and FastAPI's `dependency_overrides` mechanism.
+## Security model
 
-This allows me to test endpoint behavior without making real requests to external services.
+- Protected API routes use bearer-token authentication and role dependencies.
+- Access tokens expire after **15 minutes**; refresh tokens after **7 days**.
+- JWT verification checks signature, issuer, audience, expiration, required claims and token type.
+- Passwords are verified through the project's password hashing layer.
+- The Next.js server stores the access token in an HTTP-only session cookie.
 
-For example, when testing the Visual Crossing endpoint, I can replace the actual weather service with a mock object that returns predefined weather data.
+**Current limitations:** Token `jti` values are generated but are not yet enforced as a revocation/rotation mechanism. The frontend logout clears the cookie without server-side token revocation. Refresh-token replay protection and login rate limiting should be implemented before production use. The frontend cookie lifetime is currently 30 minutes, longer than the 15-minute access-token lifetime.
 
-Database write operations can also be mocked when they are outside the scope of the test.
+## Known limitations and roadmap
 
-This makes the tests more predictable and avoids depending on external API availability.
+The following are known development items, not completed capabilities:
 
-### Test Coverage
+1. **Celery EPİAŞ collection:** Pass a valid token manager to `OOP_Epias` and align the scheduled task with the API token flow.
+2. **Token lifecycle:** Add refresh-token rotation, `jti` verification, revocation, account-disabled checks and a server-side logout mechanism.
+3. **Multi-site weather data:** Bind coordinates to actual locations and filter simulation weather queries by `location_id`; the current weather ingestion uses `location_id=1`.
+4. **Database migrations:** Add Alembic and documented schema creation/update steps.
+5. **EPİAŞ token exposure:** Stop returning the raw TGT value from the public API response.
+6. **Frontend session integration:** Extend the frontend API proxy and UI to use the new UUID-based session routes if interactive session management is required.
+7. **Infrastructure checks:** Add realistic PostgreSQL/Redis integration checks, deployment configuration and monitoring.
+8. **Configuration validation:** Fail clearly on missing or invalid environment settings; remove obsolete token helper methods.
+9. **Simulation validation:** Calibrate physical models and controller behavior against measured field data before making operational decisions from simulation outputs.
 
-During the `v1.1.0` development process, the project reached **27 passing automated tests**.
+## Project scope
 
-| Module | Tests | Main Scenarios |
-| --- | ---: | --- |
-| EPİAŞ API | 7 | Authentication, missing parameters, successful requests |
-| Visual Crossing API | 6 | Authentication, validation, weather responses |
-| Inverter simulation | 14 | Power calculations, operating states, boundary conditions |
-| **Total** | **27** | |
+GES Battery is a software and simulation project for learning, experimentation and future energy-monitoring integrations. It does not currently claim to be a certified inverter controller, production SCADA system or battery digital twin. Integrating real field telemetry and equipment-specific protocols requires additional validation and engineering.
 
-The GitHub Actions test workflow was also successfully completed.
+## Author
 
-Passing tests do not mean that every possible application behavior has been covered. I plan to expand the test suite as the project grows.
+Developed by [Emirhan Navdar](https://github.com/emirhannavdar).
 
-## GitHub Actions
-
-I added GitHub Actions to automate the testing process.
-
-The workflow is stored in:
-
-```text
-.github/workflows/tests.yml
-```
-
-It runs automatically for the configured `push` and `pull_request` events.
-
-### CI Workflow
-
-The workflow performs the following steps:
-
-1. Checks out the repository.
-2. Sets up the Python environment.
-3. Installs `uv`.
-4. Installs project dependencies using the lockfile.
-5. Configures test environment variables.
-6. Runs the pytest test suite.
-
-The main test command is:
-
-```bash
-uv run python -m pytest -v
-```
-
-### Why I Added CI
-
-Before adding GitHub Actions, I was running tests locally to check whether changes had broken existing functionality.
-
-With CI, tests also run automatically in a clean environment when the configured GitHub events occur.
-
-This helps catch issues such as missing dependencies, import errors, and differences between local and CI environments.
-
-The workflow does not modify application code automatically. It only runs the configured checks.
-
-GitHub Actions results can be viewed here:
-
-[View GitHub Actions](https://github.com/emirhannavdar/ges_battery/actions)
-
-## Development Notes
-
-While working on this project, I've been focusing on improving both the application structure and the development process.
-
-Some of the main things I've worked on are:
-
-1. Separating endpoint handlers from service logic.
-2. Organizing external API requests into reusable classes.
-3. Handling application and external service errors consistently.
-4. Moving sensitive configuration values into environment variables.
-5. Managing database connections and persistence separately.
-6. Adding unit tests for inverter calculations.
-7. Testing API endpoints with mocked dependencies.
-8. Setting up automated testing through GitHub Actions.
-
-There are still several areas I want to improve.
-
-### Planned Improvements
-
-- Expand authentication and authorization tests.
-- Add more database integration tests using an isolated test database.
-- Measure test coverage.
-- Improve API documentation.
-- Add more simulation scenarios.
-- Continue refactoring the project as new features are added.
-
-I'm treating this project as an ongoing development process, so the structure and functionality may change as I improve different parts of the system.
-
-## Version History
-
-### v1.1.0 — Automated Testing & CI Integration
-
-This release focuses on improving test reliability and automating the testing process.
-
-Main changes:
-
-- Added automated API tests.
-- Added inverter simulation tests.
-- Integrated GitHub Actions CI.
-- Improved dependency management.
-- Added mock-based testing for external services.
-- Fixed test environment configuration issues.
-- Verified the automated test workflow.
-
-Previous releases and version details are available on the GitHub Releases page:
-
-[View Releases](https://github.com/emirhannavdar/ges_battery/releases)
-
----
-
-This project is still under development. I'll continue updating the code, tests, and documentation as I add new features and improve the existing implementation.
+Repository: [github.com/emirhannavdar/ges_battery](https://github.com/emirhannavdar/ges_battery)

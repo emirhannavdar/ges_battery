@@ -79,10 +79,6 @@ class OOP_Epias:
                 timeout=30
             )
 
-            print("*********************")
-            print(headers)
-            print("*********************")
-
             response.raise_for_status()
             return response.json()
 

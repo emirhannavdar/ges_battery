@@ -5,8 +5,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from database.database import get_db
-from api.errors.exceptions import DomainError
-from auth.auth import User, get_current_user, get_current_active_user
+from auth.auth import User, get_current_active_user
 from simulation.simulation_manager import SimulationManager
 from datetime import date, time
 from database.simulation_repository import (
@@ -25,7 +24,6 @@ inverter_router = APIRouter(
     tags=["Inverter Simulation"]
 )
 
-simulation_manager = SimulationManager()
 
 class InverterStepRequest(BaseModel):
     saat_kac: str = Field(default="11:00:00")
@@ -211,20 +209,6 @@ def get_simulations(
 
     return dict(simulation)
 
-@inverter_router.post("/start")
-def start_inverter(
-        current_user: User = Depends(get_current_user),
-        active_user: User = Depends(get_current_active_user),
-        user_roles: dict = Depends(operator_require_roles())
-):
-
-    simulation_manager.start()
-
-    return {
-        "success": True,
-        "message": "İnvertör başlatıldı."
-    }
-
 @inverter_router.post("/sessions/{simulation_id}/step")
 def step_simulation_session(
     simulation_id: UUID,
@@ -389,7 +373,6 @@ def create_session_inverter_fault(
         db.rollback()
         raise
 
-
 @inverter_router.post(
     "/sessions/{simulation_id}/fault/reset/{inverter_id}"
 )
@@ -469,111 +452,6 @@ def get_session_inverter_data(
         ),
         "data": manager.get_inverter_data()
     }
-
-@inverter_router.post("/reset")
-def reset_simulator(
-    active_user: User = Depends(get_current_active_user),
-    user_roles: dict = Depends(operator_require_roles())
-):
-    simulation_manager.reset()
-
-    return {
-        "success": True,
-        "message": "Simülasyon sıfırlandı."
-    }
-
-
-@inverter_router.post("/step")
-def step_inverter(
-        request: InverterStepRequest,
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user),
-        active_user: User = Depends(get_current_active_user),
-        user_roles: dict = Depends(operator_require_roles())
-):
-
-    result_db = db.execute(
-        text("""
-            SELECT measurement_time, temperature, solar_radiation, cloud_cover, datetime_days, datetime_hours
-            FROM weather_data
-            WHERE datetime_hours = :target_time and datetime_days = :target_days LIMIT 1
-        """), {"target_time": request.saat_kac, "target_days": request.hangi_gun}
-    )
-
-    weather = result_db.mappings().first()
-
-    if weather is None:
-        raise DomainError("Veri bulunamadı")
-
-    ambient_temp = weather["temperature"]
-    irradiance = weather["solar_radiation"]
-
-    if ambient_temp is None or irradiance is None:
-        raise DomainError(
-            "Sıcaklık veya güneş ışınımı verisi eksik."
-        )
-    try:
-        result = simulation_manager.step(
-            irradiance=irradiance,
-            ambient_temp=ambient_temp,
-            dt_seconds=request.dt_seconds,
-            cloud_cover=weather["cloud_cover"],
-            datetime_days=weather["datetime_days"],
-            datetime_hours=weather["datetime_hours"]
-        )
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=str(exc)
-        ) from exc
-
-    return {
-        "success": True,
-        "data": result
-    }
-
-@inverter_router.post('/fault')
-def create_inverter_fault(
-        request: InverterFaultRequest,
-        active_user: User = Depends(get_current_active_user),
-        user_roles: dict = Depends(operator_require_roles())
-):
-    try:
-        simulation_manager.set_inverter_fault(
-            inverter_id=request.inverter_id,
-            reason=request.reason
-        )
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=str(exc)
-        ) from exc
-
-    return {
-        "success": True,
-        "message": "Inverter arıza üretti."
-    }
-
-@inverter_router.post('/fault/reset/{inverter_id}')
-def clear_inverter_fault(
-        inverter_id: str,
-        active_user: User = Depends(get_current_active_user),
-        user_roles: dict = Depends(operator_require_roles())
-):
-    try:
-        simulation_manager.reset_inverter_fault(inverter_id)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=400,
-            detail=str(e)
-        ) from e
-
-    return {
-        "success": True,
-        "message": "Inverter arızası sıfırlandı"
-    }
-
-
 
 @inverter_router.post("/daily")
 def daily_simulation(
@@ -798,7 +676,6 @@ def daily_simulation(
         "data": simulation_data
     }
 
-
 @inverter_router.get("/simulations/compare")
 def compare_simulations(
     simulation_id_1: int = Query(..., ge=1),
@@ -867,7 +744,6 @@ def compare_simulations(
         }
     }
 
-
 @inverter_router.get("/simulations")
 def list_simulations(
     db: Session = Depends(get_db),
@@ -886,7 +762,6 @@ def list_simulations(
             "simulations": simulations
         }
     }
-
 
 @inverter_router.get("/simulations/{simulation_id}")
 def simulation_detail(
@@ -910,15 +785,4 @@ def simulation_detail(
     return {
         "success": True,
         "data": simulation
-    }
-
-
-@inverter_router.get("/data")
-def get_inverter_data(
-    active_user: User = Depends(get_current_active_user),
-    user_roles: dict = Depends(operator_require_roles())
-):
-    return {
-        "success": True,
-        "data": simulation_manager.get_inverter_data()
     }

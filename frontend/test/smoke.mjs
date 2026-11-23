@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
-import {existsSync} from 'node:fs';
+import {existsSync,mkdirSync} from 'node:fs';
 import {createServer} from 'node:http';
 import {setTimeout as delay} from 'node:timers/promises';
 import puppeteer from 'puppeteer-core';
@@ -9,6 +9,18 @@ const hour = {
   hour:'12:00', irradiance_w_m2:700, ambient_temperature_c:24, inverter_power_kw:810,
   grid_power_kw:800, transformer_loss_kw:10, ekk_limit_exceeded:false,
 };
+const hours = Array.from({length:24},(_,index)=>{
+  const irradiance = Math.max(0,Math.sin((index-6)/12*Math.PI))*850;
+  const available = irradiance*2.4;
+  const power = Math.min(available,810);
+  return {
+    ...hour,hour:String(index).padStart(2,'0')+':00',
+    irradiance_w_m2:irradiance,ambient_temperature_c:18+irradiance/100,
+    inverter_power_kw:power,grid_power_kw:power*.988,
+    transformer_loss_kw:power*.012,available_active_power_kw:available,
+    curtailed_power_kw:available-power,curtailed_energy_kwh:available-power,
+  };
+});
 const rows = [2,1].map(id=>({
   id, simulation_date:'2026-04-0'+id, created_at:'2026-04-04T12:00:00',
   inverter_count:3, processed_hours:24, total_inverter_energy_kwh:9000+id,
@@ -16,7 +28,7 @@ const rows = [2,1].map(id=>({
 }));
 const details = rows.map(row=>({
   ...row, total_curtailed_energy_kwh:200, inverter_ac_rated_kw:900, inverter_dc_rated_kw:1000,
-  ekk_active_power_limit_kw:800, transformer_efficiency:.988, hourly_results:[hour],
+  ekk_active_power_limit_kw:800, transformer_efficiency:.988, hourly_results:hours,
 }));
 const authToken = 'smoke-test-token';
 let allowToken = true;
@@ -89,20 +101,26 @@ try {
   assert.equal(new URL(page.url()).pathname,'/giris');
   await page.type('[name=username]','operator');
   await page.type('[name=password]','wrong');
-  await page.click('.login-form button');
+  await page.click('.login-form .primary');
   await contains('Şifre yanlış');
   await page.$eval('[name=password]',input=>{input.value='';});
   await page.type('[name=password]','test-only');
-  await Promise.all([page.waitForNavigation(),page.click('.login-form button')]);
+  await Promise.all([page.waitForNavigation(),page.click('.login-form .primary')]);
   await contains('Test Operatörü');
   await contains('8.002');
   assert.equal(await page.evaluate(()=>document.cookie.includes('ges_session')),false);
   const cookie = (await browser.defaultBrowserContext().cookies()).find(item=>item.name==='ges_session');
   assert.ok(cookie?.httpOnly);
   assert.equal(cookie.sameSite,'Lax');
+  assert.ok(cookie.expires-Date.now()/1000<=900 && cookie.expires-Date.now()/1000>850);
   for(const width of [375,768,1440]){
     await page.setViewport({width,height:850});
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth));
+    if(process.env.CAPTURE_UI){
+      mkdirSync('.qa',{recursive:true});
+      await delay(600);
+      await page.screenshot({path:'.qa/dashboard-'+width+'.png',fullPage:true});
+    }
   }
   await go('/gecmis');
   await contains('8.001');
@@ -116,6 +134,18 @@ try {
   await contains('Senaryo özeti');
   await contains('Simülasyon tarihleri farklı.');
   await go('/yeni');
+  await page.waitForSelector('[name=inverter_count]');
+  await page.focus('[name=inverter_count]');
+  await page.keyboard.down('Control');
+  await page.keyboard.press('A');
+  await page.keyboard.up('Control');
+  await page.keyboard.type('5');
+  await contains('4.500');
+  await page.focus('[name=inverter_count]');
+  await page.keyboard.down('Control');
+  await page.keyboard.press('A');
+  await page.keyboard.up('Control');
+  await page.keyboard.type('3');
   await page.$eval('[name=simulation_date]',input=>{input.value='2026-04-03';});
   await page.click('form button');
   await contains('24 saatlik veri eksik.');
@@ -123,6 +153,14 @@ try {
   await page.click('form button');
   await contains('Kullanılabilir ve kısılan güç');
   assert.equal(new URL(page.url()).pathname,'/sonuclar/2');
+  const download = await page.waitForSelector('button.secondary');
+  await download.click();
+  if(process.env.CAPTURE_UI){
+    await page.screenshot({path:'.qa/results.png',fullPage:true});
+    await go('/yeni');
+    await page.waitForSelector('.simulation-form');
+    await page.screenshot({path:'.qa/new-simulation.png',fullPage:true});
+  }
   await page.click('button[aria-label="Çıkış yap"]');
   await page.waitForSelector('.login-form');
   assert.equal((await post('inverter/daily','{}')).status,401);
@@ -132,7 +170,7 @@ try {
   assert.notEqual(login.status,200);
   await page.type('[name=username]','operator');
   await page.type('[name=password]','test-only');
-  await Promise.all([page.waitForNavigation(),page.click('.login-form button')]);
+  await Promise.all([page.waitForNavigation(),page.click('.login-form .primary')]);
   allowToken = false;
   await page.evaluate(()=>fetch('/api/inverter/simulations'));
   const session = (await browser.defaultBrowserContext().cookies()).find(item=>item.name==='ges_session');

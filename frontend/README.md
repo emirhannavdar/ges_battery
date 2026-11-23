@@ -20,9 +20,11 @@ Tarayıcıda http://localhost:3000 adresini açın. `BACKEND_URL` sunucu tarafı
 | Kayıt detayı | `GET /inverter/simulations/{simulation_id}` |
 | Karşılaştırma | `GET /inverter/simulations/compare?simulation_id_1=…&simulation_id_2=…` |
 
-Next.js, JWT'yi 30 dakikalık HttpOnly ve SameSite=Lax çerezde tutar. Tarayıcı yalnızca Next.js'e bağlanır. Next.js, aktif kullanıcı doğrulaması ve simülasyon çağrıları için Bearer token ile FastAPI'ye bağlanır. Çıkışta oturum çerezi silinir.
+Next.js, JWT'yi backend'in 15 dakikalık access token süresiyle uyumlu HttpOnly ve SameSite=Lax çerezde tutar. Tarayıcı yalnızca Next.js'e bağlanır. Next.js, aktif kullanıcı doğrulaması ve simülasyon çağrıları için Bearer token ile FastAPI'ye bağlanır. Çıkışta oturum çerezi silinir.
 
-Liste ve karşılaştırmanın eksik alanları kayıt detayından tamamlanır. Günlük POST yanıtında bulunan saatlik kullanılabilir ve kısılan güç, aynı sekmede yeni çalıştırılan kayıt için gösterilir. Saklanan kayıt detayında bu seriler sunulmadığında arayüz bunun bilgisini gösterir.
+Liste ve karşılaştırmanın eksik alanları kayıt detayından tamamlanır. Kayıt detayı, veritabanında saklanan saatlik kullanılabilir güç, kısılan güç ve kısılan enerji alanlarını döndürür. Böylece bu grafikler sayfa yeniden açıldığında da görüntülenir. Eski kayıtlarda alanlar boşsa arayüz veri durumunu belirtir.
+
+Sonuç sayfasındaki CSV indirme, saatlik ölçümleri dışa aktarır. Yeni simülasyon formu, girilen parametrelerden toplam AC/DC kapasiteyi ve DC/AC oranını gösterir. Grafikler ve ölçümler kaydedilen simülasyona aittir.
 
 ```powershell
 npm.cmd run lint

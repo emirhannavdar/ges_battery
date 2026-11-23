@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import {usePathname} from 'next/navigation';
-import {Activity, ArrowUpRight, GitCompareArrows, History, LayoutDashboard, LogOut, Plus, Sun} from 'lucide-react';
+import {Activity, ArrowUpRight, ChevronRight, GitCompareArrows, History, LayoutDashboard, LogOut, Plus, Sun} from 'lucide-react';
 import {useState} from 'react';
 import {api} from '@/lib/client';
 import type {Profile} from '@/lib/contracts';
@@ -35,15 +35,15 @@ export function Shell({user,children}:{user:Profile;children:React.ReactNode}) {
   }
   return <div className="shell">
     <aside className="sidebar">
-      <Link href="/" className="brand"><span><Sun size={22}/></span>Helio</Link>
+      <Link href="/" className="brand"><span><Sun size={22}/></span><div>Helio<small>Güneş enerjisi simülasyonu</small></div></Link>
       <nav aria-label="Ana gezinme">{links.map(([href,label,Icon])=>{
         const active = path === href || (href === '/gecmis' && path.startsWith('/sonuclar/'));
         return <Link key={href} href={href} aria-current={active?'page':undefined}><Icon size={17}/><span>{label}</span></Link>;
       })}</nav>
-      <div className="sidebar-foot"><Activity size={17}/> GES simülasyon çalışma alanı</div>
+      <div className="sidebar-foot"><Sun size={26}/><strong>Her senaryoda daha net.</strong><p>Üretimi, kayıpları ve şebeke sınırlarını birlikte inceleyin.</p><Link href="/yeni">Simülasyon oluştur <ArrowUpRight size={15}/></Link></div>
     </aside>
     <div className="workspace">
-      <header className="topbar"><span className="top-title">Enerji simülasyonu</span><div className="account">
+      <header className="topbar"><div className="breadcrumbs"><Activity size={16}/><span>Çalışma alanı</span><ChevronRight size={14}/><strong>{links.find(([href])=>href===path)?.[1] || 'Simülasyon sonucu'}</strong></div><div className="account">
         <span className="avatar" aria-hidden="true">{user.username.slice(0,2).toLocaleUpperCase('tr-TR')}</span>
         <div><strong>{user.full_name || user.username}</strong><small>{user.email || user.username}</small></div>
         <button type="button" className="icon-button" aria-label="Çıkış yap" title="Çıkış yap" onClick={logout} disabled={busy}><LogOut size={17}/></button>

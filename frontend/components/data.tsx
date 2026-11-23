@@ -15,7 +15,15 @@ export async function detail(id:number|string) {
     if(!saved) return data;
     const hours:Hour[] = JSON.parse(saved);
     const byHour = new Map(hours.map(hour=>[hour.hour,hour]));
-    return {...data,hourly_results:data.hourly_results.map(hour=>({...byHour.get(hour.hour.slice(0,5)),...hour}))};
+    return {...data,hourly_results:data.hourly_results.map(hour=>{
+      const cached = byHour.get(hour.hour.slice(0,5));
+      return {
+        ...hour,
+        available_active_power_kw:hour.available_active_power_kw ?? cached?.available_active_power_kw,
+        curtailed_power_kw:hour.curtailed_power_kw ?? cached?.curtailed_power_kw,
+        curtailed_energy_kwh:hour.curtailed_energy_kwh ?? cached?.curtailed_energy_kwh,
+      };
+    })};
   } catch {
     return data;
   }

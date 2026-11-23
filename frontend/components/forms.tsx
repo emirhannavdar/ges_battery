@@ -1,13 +1,14 @@
 'use client';
 import {useState,type FormEvent} from 'react';
 import {useRouter} from 'next/navigation';
-import {ArrowRight, Play, SlidersHorizontal} from 'lucide-react';
-import {daily,type Envelope,type Hour} from '@/lib/contracts';
+import {ArrowRight, CalendarDays, Check, CircuitBoard, Eye, EyeOff, Info, Play, SlidersHorizontal} from 'lucide-react';
+import {daily,number,type Envelope,type Hour} from '@/lib/contracts';
 import {api} from '@/lib/client';
 
 export function Login({expired}:{expired:boolean}) {
   const [error,setError] = useState('');
   const [busy,setBusy] = useState(false);
+  const [visible,setVisible] = useState(false);
   async function submit(event:FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -27,7 +28,7 @@ export function Login({expired}:{expired:boolean}) {
     <h2>Oturum aç</h2><p>Simülasyon çalışma alanınıza giriş yapın.</p>
     {expired && <p role="status" className="notice">Oturumunuz sona erdi. Yeniden giriş yapın.</p>}
     <label>Kullanıcı adı<input name="username" autoComplete="username" required placeholder="Kullanıcı adınız"/></label>
-    <label>Parola<input name="password" type="password" autoComplete="current-password" required placeholder="Parolanız"/></label>
+    <label>Parola<div className="password-field"><input name="password" type={visible?'text':'password'} autoComplete="current-password" required placeholder="Parolanız"/><button type="button" aria-label={visible?'Parolayı gizle':'Parolayı göster'} aria-pressed={visible} onClick={()=>setVisible(value=>!value)}>{visible?<EyeOff size={18}/>:<Eye size={18}/>}</button></div></label>
     {error && <p role="alert" className="notice danger">{error}</p>}
     <button className="primary" disabled={busy}>{busy?'Giriş yapılıyor…':'Giriş yap'}<ArrowRight size={18}/></button>
   </form>;
@@ -44,6 +45,9 @@ export function SimulationForm() {
   const router = useRouter();
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState('');
+  const [config,setConfig] = useState({inverter_count:3,inverter_ac_rated_kw:900,inverter_dc_rated_kw:1000,ekk_active_power_limit_kw:800});
+  const totalAc = config.inverter_count*config.inverter_ac_rated_kw;
+  const totalDc = config.inverter_count*config.inverter_dc_rated_kw;
   async function submit(event:FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const values = new FormData(event.currentTarget);
@@ -73,14 +77,39 @@ export function SimulationForm() {
       setBusy(false);
     }
   }
-  return <form className="panel settings" onSubmit={submit}>
-    <h2><SlidersHorizontal size={19}/> Santral yapılandırması</h2>
-    <fieldset disabled={busy} className="fields">
-      <label>Simülasyon tarihi<input type="date" name="simulation_date" required/></label>
-      {fields.map(([key,label,initial,min,max,step])=><label key={key}>{label}<input name={key} type="number" defaultValue={initial} min={min} max={max} step={step} required/></label>)}
-    </fieldset>
-    <p className="muted">Seçilen günün her saati için ışınım ve sıcaklık kaydı gerekir.</p>
-    {error && <p role="alert" className="notice danger">{error}</p>}
-    <button className="primary" disabled={busy}><Play size={16}/>{busy?'Simülasyon çalışıyor…':'Simülasyonu başlat'}</button>
-  </form>;
+  return <div className="simulation-layout">
+    <form className="panel simulation-form" onSubmit={submit} aria-busy={busy}>
+      <fieldset disabled={busy}>
+        <section className="form-section">
+          <header><CalendarDays size={20}/><div><h2>Simülasyon günü</h2><p>Hava durumu kayıtlarının kullanılacağı tarihi seçin.</p></div></header>
+          <label>Simülasyon tarihi<input type="date" name="simulation_date" required aria-describedby="weather-note"/></label>
+          <p id="weather-note" className="field-hint">Günün 24 saati için ışınım ve sıcaklık verisi gerekir.</p>
+        </section>
+        <section className="form-section">
+          <header><CircuitBoard size={20}/><div><h2>İnvertör yapılandırması</h2><p>Nominal güç değerleri her bir invertör için uygulanır.</p></div></header>
+          <div className="fields">{fields.slice(0,3).map(([key,label,initial,min,max,step])=><label key={key}>{label}<input name={key} type="number" defaultValue={initial} min={min} max={max} step={step} required onChange={event=>setConfig(previous=>({...previous,[key]:Number(event.target.value)}))}/></label>)}</div>
+        </section>
+        <section className="form-section">
+          <header><SlidersHorizontal size={20}/><div><h2>Şebeke güç sınırı</h2><p>EKK kontrolünde uygulanacak aktif güç limiti.</p></div></header>
+          <label>EKK aktif güç limiti (kW)<input name="ekk_active_power_limit_kw" type="number" defaultValue={800} min={0} step="any" required onChange={event=>setConfig(previous=>({...previous,ekk_active_power_limit_kw:Number(event.target.value)}))}/></label>
+        </section>
+      </fieldset>
+      <footer className="form-footer">
+        {error && <p role="alert" className="notice danger">{error}</p>}
+        <div><p>{busy?'Saatlik sonuçlar hesaplanıyor. Bu işlem tamamlandığında sonuç ekranı açılacak.':'Sonuçlar simülasyon geçmişinize kaydedilir.'}</p><button className="primary" disabled={busy}><Play size={16}/>{busy?'Simülasyon çalışıyor…':'Simülasyonu başlat'}</button></div>
+      </footer>
+    </form>
+    <aside className="configuration-preview">
+      <section className="panel plant-summary"><header><h2>Yapılandırma özeti</h2><CircuitBoard size={18}/></header>
+        <dl className="parameter-list">
+          <div><dt>İnvertör sayısı</dt><dd>{number(config.inverter_count)} <small>adet</small></dd></div>
+          <div><dt>Toplam AC kapasite</dt><dd>{number(totalAc)} <small>kW</small></dd></div>
+          <div><dt>Toplam DC kapasite</dt><dd>{number(totalDc)} <small>kW</small></dd></div>
+          <div><dt>DC / AC oranı</dt><dd>{totalAc>0?number(totalDc/totalAc):'—'}</dd></div>
+          <div><dt>EKK güç limiti</dt><dd>{number(config.ekk_active_power_limit_kw)} <small>kW</small></dd></div>
+        </dl>
+      </section>
+      <div className="form-guidance"><Info size={18}/><div><h3>Başlamadan önce</h3><p>Seçilen güne ait hava kayıtları eksikse simülasyon oluşturulamaz.</p><p><Check size={14}/> Parametreler mevcut günlük hesaplama motoruna gönderilir.</p></div></div>
+    </aside>
+  </div>;
 }

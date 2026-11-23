@@ -33,7 +33,7 @@ async function handle(request:NextRequest, context:Context) {
       if(!response.ok) return NextResponse.json(body,{status:response.status});
       if(typeof body.access_token !== 'string') return error(502,'Giriş yanıtı geçersiz.');
       const result = NextResponse.json({username:body.username});
-      result.cookies.set(session,body.access_token,{...options,secure,maxAge:1800});
+      result.cookies.set(session,body.access_token,{...options,secure,maxAge:900});
       return result;
     }
     const allowed = post ? path === 'inverter/daily' : /^inverter\/simulations(?:\/(?:[1-9]\d*|compare))?$/.test(path);

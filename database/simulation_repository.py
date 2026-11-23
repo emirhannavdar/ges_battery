@@ -200,7 +200,10 @@ def get_simulation_detail(
                 inverter_power_kw,
                 grid_power_kw,
                 transformer_loss_kw,
-                ekk_limit_exceeded
+                ekk_limit_exceeded,
+                available_active_power_kw,
+                curtailed_power_kw,
+                curtailed_energy_kwh
             FROM simulation_hourly_results
             WHERE simulation_id = :simulation_id
             ORDER BY hour ASC

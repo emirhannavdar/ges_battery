@@ -1,20 +1,25 @@
-﻿import requests
+﻿from functools import lru_cache
+
+import requests
 import logging
+
+from fastapi.params import Depends
 
 from api.config.config import settings
 from api.errors.exceptions import (DomainError,ExternalServiceError,AuthenticationError)
 from api.services.epias_params import (get_tgt_headers,get_tgt_body,get_epias_headers,get_ptf_body,get_kptf_body)
 from api.errors.request_errors import handle_request_error
-
+from api.services.epias_token_manager import EpiasTokenManager
+from auth.auth import get_current_active_user, User
 
 logger = logging.getLogger(__name__)
 
 
 class OOP_Epias:
 
-    def __init__(self, base_url: str):
+    def __init__(self, base_url: str, token_manager):
         self.base_url = base_url.rstrip("/")
-        self.token = None
+        self.token_manager = token_manager
         self.session = requests.Session()
 
     def __setattr__(self, name: str, value):
@@ -28,7 +33,6 @@ class OOP_Epias:
         if not self.token:
             raise AuthenticationError("İşlem yapabilmek için önce TGT token alınız")
         return self.token
-
 
     def post_TGT_token(self, username: str, password: str):
         try:
@@ -47,25 +51,37 @@ class OOP_Epias:
                 logger.info("EPİAŞ geçerli bir TGT token döndürmedi.")
                 raise ExternalServiceError("EPİAŞ geçerli bir TGT token döndürmedi")
 
-            self.token = token
-            #burda token var. self.token'a yazıyor
-            return self.token
+            return token
 
         except requests.exceptions.RequestException as e:
             handle_request_error(e, service_name="EPİAŞ")
 
+    def get_tgt(self):
+        return self.token_manager.get_token(
+            create_token=lambda: self.post_TGT_token(
+                settings._EPIAS_USERNAME,
+                settings._EPIAS_PASSWORD
+            )
+        )
+
     # ortak
     def __post_epias(self, endpoint: str, body: dict):
-        self.__token_varmi()
+        token = self.get_tgt()
+        headers = get_epias_headers(token)
+
         try:
             url = f"{self.base_url}{endpoint}"
 
             response = self.session.post(
                 url,
-                headers=get_epias_headers(self.token),
+                headers=headers,
                 json=body,
                 timeout=30
             )
+
+            print("*********************")
+            print(headers)
+            print("*********************")
 
             response.raise_for_status()
             return response.json()
@@ -75,6 +91,7 @@ class OOP_Epias:
 
 
     def post_PTF(self, startDate: str, endDate: str):
+
         if startDate > endDate:
             raise DomainError(
                 "Başlangıç değeri bitiş değerinden büyük olamaz."
@@ -90,12 +107,12 @@ class OOP_Epias:
             body=body
         )
 
-        # hata verirse burayı kontrol et
-
         if "items" not in response_data:
             raise ExternalServiceError(
                 "EPİAŞ beklenmeyen cevap formatı döndürdü."
             )
+
+
 
         items = response_data["items"]
 
@@ -129,7 +146,25 @@ class OOP_Epias:
 
         return response_data
 
-__epias_client = OOP_Epias(settings._EPIAS_BASE_URI)
 
-def get_epias_client() -> OOP_Epias:
-    return __epias_client
+@lru_cache
+def get_epias_token_manager():
+    return EpiasTokenManager(redis_url=settings._REDIS_URL)
+
+def get_epias_client(
+        current_user: User = Depends(get_current_active_user)
+):
+    token_manager = EpiasTokenManager(
+        redis_url=settings._REDIS_URL,
+        user_id=current_user.id
+    )
+
+    client = OOP_Epias(
+        base_url=settings._EPIAS_BASE_URI,
+        token_manager=token_manager
+    )
+
+    try:
+        yield client
+    finally:
+        client.session.close()

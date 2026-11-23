@@ -43,8 +43,6 @@ class User(BaseModel):
 
 class UserInDB(User):
     hashed_password: str | None = None
-    current_access_jti: UUID | None = None
-    current_refresh_jti: UUID | None = None
 
 
 class UserAuth:
@@ -133,7 +131,7 @@ class UserAuth:
         try:
             result = db.execute(
                 text("""
-                    SELECT id, username, full_name, email, role, disabled, current_access_jti, current_refresh_jti
+                    SELECT id, username, full_name, email, role, disabled
                     FROM users
                     WHERE id = :id
                 """),

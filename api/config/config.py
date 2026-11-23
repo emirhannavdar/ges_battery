@@ -15,7 +15,7 @@ class Config:
 
     _EPIAS_BASE_URI: Final[str] = os.environ["_EPIAS_BASE_URI"]
 
-
+    _REDIS_URL: Final[str] = os.environ["_REDIS_URL"]
     _TGT_URL: Final[str] = os.getenv("_TGT_URL")
 
     _PTF_ENDPOINT = os.getenv("_PTF_ENDPOINT")

@@ -14,7 +14,7 @@ from auth.auth import User, get_current_user
 from auth.auth import get_current_active_user
 from database.database import get_db
 from database.epias_ptf_db import save_epias_pt_data
-from auth.roles import admin_require_roles
+from auth.roles import admin_require_roles, operator_require_roles
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ def ptf(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
         active_user: User = Depends(get_current_active_user),
-        user: dict = Depends(admin_require_roles())
+        user: dict = Depends(operator_require_roles())
 ):
     try:
         data = client.post_PTF(startDate, endDate)

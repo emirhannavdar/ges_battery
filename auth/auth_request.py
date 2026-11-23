@@ -86,23 +86,6 @@ async def login(
         role=user_dict["role"],
         token_type="access"
     )
-    try:
-        db.execute(
-            text("""
-                    UPDATE users
-                    SET current_access_jti = :current_access_jti
-                    WHERE id = :id
-                """
-            ), {
-                "current_access_jti": UUID(access_token["payload"]["jti"]),
-                "id": user_dict["id"],
-            }
-        )
-        db.commit()
-    except SQLAlchemyError:
-        db.rollback()
-        logger.exception("Access token JTI kaydedilemedi.")
-        raise
 
     refresh_token = auth_client._jwt_token(
         user_id=user_dict["id"],
@@ -144,24 +127,6 @@ async def refresh_access_token(
         role=user["role"],
         token_type="access"
     )
-
-    try:
-        db.execute(
-            text("""
-                    UPDATE users
-                    SET current_access_jti = :current_access_jti
-                    WHERE id = :id
-                """
-            ), {
-                "current_access_jti": UUID(access_token["payload"]["jti"]),
-                "id": user["id"],
-            }
-        )
-        db.commit()
-    except SQLAlchemyError:
-        db.rollback()
-        logger.exception("Access token JTI kaydedilemedi.")
-        raise
 
     return {
         "username": user["username"],

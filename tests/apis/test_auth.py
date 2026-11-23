@@ -1,3 +1,4 @@
+import uuid
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 from api.api import app
@@ -95,7 +96,7 @@ def test_auth_token_if_not_user():
             )
 
             assert response.status_code == 401
-            assert response.json() == {"error_description": "Kullanıcı bulunamadı"}
+            assert response.json() == {"error_description": "Kullanıcı bulunamadı."}
         finally:
             app.dependency_overrides.pop(get_db, None)
 
@@ -132,6 +133,8 @@ def test_auth_token_not_true_password(authenticated_client):
     fake_db = MagicMock()
     app.dependency_overrides[get_db] = lambda: fake_db
 
+    unique_username = f"test-user-{uuid.uuid4().hex[:6]}"
+
     with patch("auth.auth_request.get_user_db") as mogic_db, \
             patch("auth.auth_request.controle_hash_password", return_value=False):
         mogic_db.return_value = {
@@ -147,12 +150,12 @@ def test_auth_token_not_true_password(authenticated_client):
             response = authenticated_client.post(
                 "/auth/token",
                 data = {
-                    "username": "test-user",
+                    "username": unique_username,
                     "password": "12345678"
                 }
             )
             assert response.status_code == 401
-            assert response.json() == {"error_description": "Şifre yanlış"}
+            assert response.json() == {"error_description": "Şifre yanlış."}
         finally:
             app.dependency_overrides.pop(get_db, None)
 

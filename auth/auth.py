@@ -1,4 +1,3 @@
-import hmac
 import logging
 import pathlib
 import jwt

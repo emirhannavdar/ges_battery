@@ -6,6 +6,7 @@ import {daily,number,type Envelope,type Hour} from '@/lib/contracts';
 import {api} from '@/lib/client';
 
 export function Login({expired}:{expired:boolean}) {
+  const router = useRouter();
   const [error,setError] = useState('');
   const [busy,setBusy] = useState(false);
   const [visible,setVisible] = useState(false);
@@ -18,7 +19,7 @@ export function Login({expired}:{expired:boolean}) {
       await api('session/login',{method:'POST',body:new URLSearchParams({
         username:String(form.get('username')),password:String(form.get('password')),
       })});
-      window.location.replace('/');
+      router.replace('/');
     } catch(err) {
       setError((err as Error).message);
       setBusy(false);

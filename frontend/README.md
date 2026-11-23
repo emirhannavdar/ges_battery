@@ -14,13 +14,18 @@ Tarayıcıda http://localhost:3000 adresini açın. `BACKEND_URL` sunucu tarafı
 | İşlem | FastAPI |
 | --- | --- |
 | Giriş | `POST /auth/token` (URL encoded form) |
+| Oturum yenileme | `POST /auth/refresh-access-token` (`X-Refresh-Token` başlığı) |
 | Kullanıcı | `GET /auth/users/me` |
 | Günlük simülasyon | `POST /inverter/daily` |
 | Geçmiş | `GET /inverter/simulations` |
 | Kayıt detayı | `GET /inverter/simulations/{simulation_id}` |
 | Karşılaştırma | `GET /inverter/simulations/compare?simulation_id_1=…&simulation_id_2=…` |
 
-Next.js, JWT'yi backend'in 15 dakikalık access token süresiyle uyumlu HttpOnly ve SameSite=Lax çerezde tutar. Tarayıcı yalnızca Next.js'e bağlanır. Next.js, aktif kullanıcı doğrulaması ve simülasyon çağrıları için Bearer token ile FastAPI'ye bağlanır. Çıkışta oturum çerezi silinir.
+Access token yalnızca tarayıcıdaki JavaScript modülünün belleğinde tutulur. Tarayıcı Next.js'e, Next.js de FastAPI'ye bu token'ı `Authorization: Bearer …` başlığında gönderir. Access token çereze, localStorage'a veya sessionStorage'a yazılmaz. Refresh token HttpOnly ve SameSite=Lax çerezde tutulur, süresi JWT içindeki `exp` değerinden belirlenir. Next.js refresh token'ı FastAPI'ye `X-Refresh-Token` başlığında iletir.
+
+Sayfa yenilenince bellek sıfırlanır. İstemci oturum katmanı `POST /api/session/refresh` ile yeni access token alır ve `GET /api/session/user` üzerinden kullanıcıyı doğruladıktan sonra çalışma alanını açar. Korumalı veriler API'nin Bearer doğrulamasıyla korunur. Normal istek 401 döndürürse istemci token'ı yenileyip isteği bir kez tekrarlar. Eşzamanlı istekler tek yenilemeyi bekler. 403 yetki hatası yenileme başlatmaz. Geçici bağlantı ve servis hatalarında refresh çerezi korunur. Refresh token geçersizse veya süresi dolmuşsa yeniden giriş gerekir. Çıkışta bellek token'ı ve refresh çerezi temizlenir.
+
+Bu güncellemeden sonra bir kez yeniden giriş yapın. Önceki access çerezi giriş, yenileme veya çıkış sırasında silinir. `npm.cmd start` kullanıyorsanız önce `npm.cmd run build` çalıştırıp Next.js sürecini yeniden başlatın.
 
 Liste ve karşılaştırmanın eksik alanları kayıt detayından tamamlanır. Kayıt detayı, veritabanında saklanan saatlik kullanılabilir güç, kısılan güç ve kısılan enerji alanlarını döndürür. Böylece bu grafikler sayfa yeniden açıldığında da görüntülenir. Eski kayıtlarda alanlar boşsa arayüz veri durumunu belirtir.
 

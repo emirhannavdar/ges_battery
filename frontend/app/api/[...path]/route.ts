@@ -1,9 +1,11 @@
 import {NextRequest, NextResponse} from 'next/server';
-import {session, upstream} from '@/lib/backend';
+import {refreshSession,sessionOptions,tokenLifetime,upstream} from '@/lib/backend';
 import {daily} from '@/lib/contracts';
 
-const error = (status:number, detail:string) => NextResponse.json({detail},{status});
-const options = {httpOnly:true, sameSite:'lax', path:'/'} as const;
+const options = sessionOptions;
+const error = (status:number,detail:string) => NextResponse.json({detail},{
+  status,headers:{'Cache-Control':'no-store'},
+});
 type Context = {params:Promise<{path:string[]}>};
 
 async function handle(request:NextRequest, context:Context) {
@@ -14,10 +16,15 @@ async function handle(request:NextRequest, context:Context) {
   if(post && request.headers.get('origin') !== origin) {
     return error(403,'İstek kaynağı doğrulanamadı.');
   }
+  // Remove the previous implementation's cookie during migration.
+  function clearLegacyCookie(response:NextResponse) {
+    response.cookies.set('ges_session','',{...options,secure,maxAge:0});
+    return response;
+  }
   try {
     if(post && path === 'session/logout') {
-      const result = NextResponse.json({success:true});
-      result.cookies.set(session,'',{...options, secure, maxAge:0});
+      const result = clearLegacyCookie(NextResponse.json({success:true},{headers:{'Cache-Control':'no-store'}}));
+      result.cookies.set(refreshSession,'',{...options,secure,maxAge:0});
       return result;
     }
     if(post && path === 'session/login') {
@@ -28,29 +35,63 @@ async function handle(request:NextRequest, context:Context) {
       if(typeof username !== 'string' || !username || typeof password !== 'string' || !password) {
         return error(422,'Kullanıcı adı ve parola gerekli.');
       }
-      const response = await upstream('/auth/token', {method:'POST',body:new URLSearchParams({username,password})});
+      const response = await upstream('/auth/token',{method:'POST',body:new URLSearchParams({username,password})});
       const body = await response.json();
-      if(!response.ok) return NextResponse.json(body,{status:response.status});
-      if(typeof body.access_token !== 'string') return error(502,'Giriş yanıtı geçersiz.');
-      const result = NextResponse.json({username:body.username});
-      result.cookies.set(session,body.access_token,{...options,secure,maxAge:900});
+      if(!response.ok) return error(response.status,body.error_description ?? body.detail ?? body.message ?? 'Giriş yapılamadı.');
+      if(typeof body.access_token !== 'string' || !body.access_token || typeof body.refresh_token !== 'string' || !body.refresh_token) {
+        return error(502,'Giriş yanıtı geçersiz.');
+      }
+      const result = clearLegacyCookie(NextResponse.json({
+        access_token:body.access_token,token_type:'bearer',
+      },{headers:{'Cache-Control':'no-store'}}));
+      result.cookies.set(refreshSession,body.refresh_token,{
+        ...options,secure,maxAge:tokenLifetime(body.refresh_token,7*24*60*60),
+      });
       return result;
     }
-    const allowed = post ? path === 'inverter/daily' : /^inverter\/simulations(?:\/(?:[1-9]\d*|compare))?$/.test(path);
+    if(post && path === 'session/refresh') {
+      const token = request.cookies.get(refreshSession)?.value;
+      if(!token) return clearLegacyCookie(error(401,'Oturumunuz sona erdi.'));
+      const response = await upstream('/auth/refresh-access-token',{
+        method:'POST',headers:{'X-Refresh-Token':token},
+      });
+      if(!response.ok) {
+        const expired = response.status === 401 || response.status === 403;
+        const result = clearLegacyCookie(error(expired?401:response.status,
+          expired?'Oturumunuz sona erdi. Yeniden giriş yapın.':'Oturum yenilenemedi. Lütfen tekrar deneyin.'));
+        if(expired) result.cookies.set(refreshSession,'',{...options,secure,maxAge:0});
+        return result;
+      }
+      const body = await response.json();
+      if(typeof body.access_token !== 'string' || !body.access_token) return error(502,'Token yenileme yanıtı geçersiz.');
+      return clearLegacyCookie(NextResponse.json({
+        access_token:body.access_token,token_type:'bearer',
+      },{headers:{'Cache-Control':'no-store'}}));
+    }
+    const allowed = post ? path === 'inverter/daily'
+      : path === 'session/user' || /^inverter\/simulations(?:\/(?:[1-9]\d*|compare))?$/.test(path);
     if(!allowed) return error(404,'İşlem bulunamadı.');
-    const token = request.cookies.get(session)?.value;
-    if(!token) return error(401,'Oturumunuz sona erdi.');
-    const init:RequestInit = {};
+    const authorization = request.headers.get('authorization');
+    if(!authorization || !/^Bearer\s+\S+$/i.test(authorization)) {
+      return error(401,'Access token gerekli.');
+    }
+    const init:RequestInit = {headers:{Authorization:authorization}};
     if(post) {
       const parsed = daily.safeParse(await request.json().catch(()=>null));
       if(!parsed.success) return error(422,parsed.error.issues.map(issue=>issue.message).join(' '));
-      Object.assign(init,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(parsed.data)});
+      Object.assign(init,{
+        method:'POST',headers:{Authorization:authorization,'Content-Type':'application/json'},
+        body:JSON.stringify(parsed.data),
+      });
     }
-    const response = await upstream('/' + path + request.nextUrl.search,init,token);
-    const body = await response.json().catch(()=>({detail:'Sunucudan geçerli yanıt alınamadı.'}));
-    const result = NextResponse.json(body,{status:response.status, headers:{'Cache-Control':'no-store'}});
-    if(response.status === 401) result.cookies.set(session,'',{...options,secure,maxAge:0});
-    return result;
+    const target = path === 'session/user' ? '/auth/users/me' : '/' + path + request.nextUrl.search;
+    const response = await upstream(target,init);
+    let body = await response.json().catch(()=>({detail:'Sunucudan geçerli yanıt alınamadı.'}));
+    if(path === 'session/user' && response.ok) {
+      const {username,full_name,email} = body;
+      body = {username,full_name,email};
+    }
+    return NextResponse.json(body,{status:response.status,headers:{'Cache-Control':'no-store'}});
   } catch {
     return error(502,'FastAPI bağlantısı kurulamadı veya yanıt zaman aşımına uğradı.');
   }

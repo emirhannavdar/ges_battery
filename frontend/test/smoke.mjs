@@ -31,6 +31,14 @@ const details = rows.map(row=>({
   ekk_active_power_limit_kw:800, transformer_efficiency:.988, hourly_results:hours,
 }));
 const authToken = 'smoke-test-token';
+const refreshToken = 'smoke-refresh-token';
+let currentAccessToken = authToken;
+let refreshAllowed = true;
+let refreshUnavailable = false;
+let denyPermission = false;
+let refreshCount = 0;
+let dailyWrites = 0;
+let rotateAfterList = false;
 let allowToken = true;
 const paths = new Set();
 const fixture = createServer(async (request,response)=>{
@@ -39,18 +47,33 @@ const fixture = createServer(async (request,response)=>{
   paths.add(path);
   const send = (status,body)=>response.writeHead(status,{'Content-Type':'application/json'}).end(JSON.stringify(body));
   const ok = data=>send(200,{success:true,data});
+  assert.equal(request.headers.cookie,undefined,'Browser cookies must not be forwarded to FastAPI');
   const chunks = [];
   for await(const chunk of request) chunks.push(chunk);
   const body = Buffer.concat(chunks).toString();
   if(path === '/auth/token'){
     const form = new URLSearchParams(body);
     return request.headers['content-type']?.startsWith('application/x-www-form-urlencoded') && form.get('username')==='operator' && form.get('password')==='test-only'
-      ? send(200,{access_token:authToken,username:'operator',token_type:'bearer'})
+      ? send(200,{access_token:currentAccessToken,refresh_token:refreshToken,username:'operator',token_type:'bearer'})
       : send(401,{error_description:'Şifre yanlış'});
   }
-  if(!allowToken || request.headers.authorization !== 'Bearer '+authToken) return send(401,{detail:'Oturum geçersiz'});
+  if(path === '/auth/refresh-access-token'){
+    refreshCount++;
+    await delay(50);
+    if(refreshUnavailable) return send(503,{detail:'Geçici servis hatası'});
+    if(!refreshAllowed || request.headers['x-refresh-token'] !== refreshToken) return send(401,{detail:'Refresh token geçersiz'});
+    return send(200,{access_token:currentAccessToken,token_type:'bearer'});
+  }
+  if(!allowToken || request.headers.authorization !== 'Bearer '+currentAccessToken) return send(401,{detail:'Oturum geçersiz'});
+  if(denyPermission) return send(403,{detail:'Yetkiniz yok'});
   if(path === '/auth/users/me') return send(200,{username:'operator',full_name:'Test Operatörü',email:null,access_token:authToken});
-  if(path === '/inverter/simulations') return ok({count:2,simulations:rows});
+  if(path === '/inverter/simulations') {
+    if(rotateAfterList) {
+      rotateAfterList = false;
+      currentAccessToken = 'parallel-access-token';
+    }
+    return ok({count:2,simulations:rows});
+  }
   if(path === '/inverter/simulations/compare') {
     if(url.searchParams.get('simulation_id_1')!=='1' || url.searchParams.get('simulation_id_2')!=='2') return send(422,{detail:'Beklenmeyen senaryo'});
     return ok({scenario_1:{id:1},scenario_2:{id:2},comparison:{grid_energy_difference_kwh:1,grid_energy_change_percent:.01,same_weather_date:false}});
@@ -59,6 +82,7 @@ const fixture = createServer(async (request,response)=>{
     const values = JSON.parse(body);
     if(values.simulation_date === '2026-04-03') return send(422,{detail:{message:'24 saatlik veri eksik.',missing_hours:['00:00']}});
     if(values.simulation_date !== '2026-04-02' || values.inverter_count !== 3 || values.inverter_ac_rated_kw !== 900 || values.inverter_dc_rated_kw !== 1000 || values.ekk_active_power_limit_kw !== 800) return send(422,{detail:'Beklenmeyen parametre'});
+    dailyWrites++;
     return ok({simulation_id:2,hourly_results:[{...hour,available_active_power_kw:950,curtailed_power_kw:140}]});
   }
   const found = details.find(row=>path==='/inverter/simulations/'+row.id);
@@ -83,6 +107,10 @@ try {
   browser = await puppeteer.launch({executablePath:chrome,headless:true});
   const page = await browser.newPage();
   const errors = [];
+  let browserSentBearer = false;
+  page.on('request',request=>{
+    if(request.url().includes('/api/inverter/') && request.headers().authorization?.startsWith('Bearer ')) browserSentBearer = true;
+  });
   page.on('pageerror',error=>errors.push(error.message));
   const contains = async text=>{
     try {
@@ -98,6 +126,7 @@ try {
     return {status:response.status,body:await response.json()};
   },path,body);
   await go('/');
+  await page.waitForSelector('.login-form');
   assert.equal(new URL(page.url()).pathname,'/giris');
   await page.type('[name=username]','operator');
   await page.type('[name=password]','wrong');
@@ -108,11 +137,44 @@ try {
   await Promise.all([page.waitForNavigation(),page.click('.login-form .primary')]);
   await contains('Test Operatörü');
   await contains('8.002');
+  assert.ok(browserSentBearer,'Protected browser requests must use Authorization');
   assert.equal(await page.evaluate(()=>document.cookie.includes('ges_session')),false);
-  const cookie = (await browser.defaultBrowserContext().cookies()).find(item=>item.name==='ges_session');
-  assert.ok(cookie?.httpOnly);
-  assert.equal(cookie.sameSite,'Lax');
-  assert.ok(cookie.expires-Date.now()/1000<=900 && cookie.expires-Date.now()/1000>850);
+  assert.ok(!(await browser.defaultBrowserContext().cookies()).some(item=>item.name==='ges_session'));
+  const refreshCookie = (await browser.defaultBrowserContext().cookies()).find(item=>item.name==='ges_refresh');
+  assert.ok(refreshCookie?.httpOnly);
+  assert.equal(refreshCookie.sameSite,'Lax');
+  assert.equal(await page.evaluate(()=>document.cookie.includes('ges_refresh')),false);
+  assert.equal(await page.evaluate(()=>fetch('/api/inverter/simulations').then(response=>response.status)),401);
+  assert.equal(refreshCount,0);
+  currentAccessToken = 'rotated-access-token';
+  await page.click('nav a[href="/gecmis"]');
+  await contains('8.001');
+  assert.equal(refreshCount,1);
+  assert.ok(!(await browser.defaultBrowserContext().cookies()).some(item=>item.name==='ges_session'));
+  // A full reload loses the in-memory token and restores it using refresh.
+  const beforeReload = refreshCount;
+  await go('/yeni');
+  await contains('Yapılandırma özeti');
+  assert.equal(refreshCount,beforeReload+1);
+  assert.equal(new URL(page.url()).pathname,'/yeni');
+  refreshUnavailable = true;
+  await go('/yeni');
+  await contains('Oturum yenilenemedi.');
+  assert.equal(new URL(page.url()).pathname,'/yeni');
+  assert.ok((await browser.defaultBrowserContext().cookies()).some(item=>item.name==='ges_refresh'));
+  refreshUnavailable = false;
+  await page.click('button.secondary');
+  await contains('Yapılandırma özeti');
+  denyPermission = true;
+  const beforeForbidden = refreshCount;
+  await page.click('nav a[href="/gecmis"]');
+  await contains('Yetkiniz yok');
+  assert.equal(refreshCount,beforeForbidden);
+  assert.equal(new URL(page.url()).pathname,'/gecmis');
+  denyPermission = false;
+  await go('/');
+  await contains('8.002');
+  assert.equal(await page.evaluate(()=>Object.values(localStorage).some(value=>value.includes('access-token') || value.includes('smoke-test-token'))),false);
   for(const width of [375,768,1440]){
     await page.setViewport({width,height:850});
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth));
@@ -122,8 +184,11 @@ try {
       await page.screenshot({path:'.qa/dashboard-'+width+'.png',fullPage:true});
     }
   }
-  await go('/gecmis');
+  const beforeParallel = refreshCount;
+  rotateAfterList = true;
+  await page.click('nav a[href="/gecmis"]');
   await contains('8.001');
+  assert.equal(refreshCount,beforeParallel+1,'Parallel failures must share a renewal');
   await page.type('.search input','1');
   await page.waitForFunction(()=>document.querySelectorAll('tbody tr').length===1);
   await go('/karsilastir');
@@ -149,10 +214,13 @@ try {
   await page.$eval('[name=simulation_date]',input=>{input.value='2026-04-03';});
   await page.click('form button');
   await contains('24 saatlik veri eksik.');
+  // Renew and retry a POST without creating duplicate simulation records.
+  currentAccessToken = 'post-renewed-access-token';
   await page.$eval('[name=simulation_date]',input=>{input.value='2026-04-02';});
   await page.click('form button');
   await contains('Kullanılabilir ve kısılan güç');
   assert.equal(new URL(page.url()).pathname,'/sonuclar/2');
+  assert.equal(dailyWrites,1);
   const download = await page.waitForSelector('button.secondary');
   await download.click();
   if(process.env.CAPTURE_UI){
@@ -163,6 +231,7 @@ try {
   }
   await page.click('button[aria-label="Çıkış yap"]');
   await page.waitForSelector('.login-form');
+  assert.ok(!(await browser.defaultBrowserContext().cookies()).some(item=>item.name==='ges_refresh'));
   assert.equal((await post('inverter/daily','{}')).status,401);
   assert.ok(paths.has('/inverter/daily'));
   const login = await post('session/login','username=operator&password=test-only');
@@ -171,12 +240,16 @@ try {
   await page.type('[name=username]','operator');
   await page.type('[name=password]','test-only');
   await Promise.all([page.waitForNavigation(),page.click('.login-form .primary')]);
+  await contains('8.002');
   allowToken = false;
-  await page.evaluate(()=>fetch('/api/inverter/simulations'));
+  refreshAllowed = false;
+  await page.click('nav a[href="/gecmis"]');
+  await page.waitForSelector('.login-form');
   const session = (await browser.defaultBrowserContext().cookies()).find(item=>item.name==='ges_session');
   assert.equal(session,undefined);
+  assert.ok(!(await browser.defaultBrowserContext().cookies()).some(item=>item.name==='ges_refresh'));
   assert.deepEqual(errors,[]);
-  console.log('Smoke passed: protected routes, login, HttpOnly session, history, comparison, daily validation/save, logout, expired token, responsive widths.');
+  console.log('Smoke passed: memory-only access token, Bearer headers, HttpOnly refresh cookie, automatic renewal, reload recovery, temporary outage/retry, 403, POST retry without duplicate saves, logout, invalid refresh.');
 } finally {
   await browser?.close();
   app.kill();

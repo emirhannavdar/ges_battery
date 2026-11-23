@@ -1,9 +1,5 @@
-import {redirect} from 'next/navigation';
-import {profile} from '@/lib/backend';
-import {Shell} from '@/components/shell';
+import {SessionGate} from '@/components/session-gate';
 
-export default async function Layout({children}:{children:React.ReactNode}) {
-  const user = await profile();
-  if(!user) redirect('/giris');
-  return <Shell user={user}>{children}</Shell>;
+export default function Layout({children}:{children:React.ReactNode}) {
+  return <SessionGate>{children}</SessionGate>;
 }

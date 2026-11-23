@@ -1,7 +1,6 @@
 export const refreshSession = 'ges_refresh';
 export const sessionOptions = {httpOnly:true, sameSite:'lax', path:'/'} as const;
 
-// FastAPI verifies JWTs. exp here only determines the refresh cookie lifetime.
 export function tokenLifetime(token:string, fallback:number) {
   try {
     const {exp} = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());

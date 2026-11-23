@@ -21,6 +21,22 @@ async function handle(request:NextRequest, context:Context) {
     response.cookies.set('ges_session','',{...options,secure,maxAge:0});
     return response;
   }
+
+  const clientIp = request.headers.get('x-forwarded-for');
+
+  function backend(path: string, init: RequestInit = {}) {
+    const headers = new Headers(init.headers);
+
+    if (clientIp) {
+      headers.set('X-Forwarded-For', clientIp);
+    }
+
+    return upstream(path, {
+      ...init,
+      headers,
+    });
+  }
+
   try {
     if(post && path === 'session/logout') {
       const result = clearLegacyCookie(NextResponse.json({success:true},{headers:{'Cache-Control':'no-store'}}));
@@ -35,7 +51,7 @@ async function handle(request:NextRequest, context:Context) {
       if(typeof username !== 'string' || !username || typeof password !== 'string' || !password) {
         return error(422,'Kullanıcı adı ve parola gerekli.');
       }
-      const response = await upstream('/auth/token',{method:'POST',body:new URLSearchParams({username,password})});
+      const response = await backend('/auth/token',{method:'POST',body:new URLSearchParams({username,password})});
       const body = await response.json();
       if(!response.ok) return error(response.status,body.error_description ?? body.detail ?? body.message ?? 'Giriş yapılamadı.');
       if(typeof body.access_token !== 'string' || !body.access_token || typeof body.refresh_token !== 'string' || !body.refresh_token) {
@@ -52,7 +68,7 @@ async function handle(request:NextRequest, context:Context) {
     if(post && path === 'session/refresh') {
       const token = request.cookies.get(refreshSession)?.value;
       if(!token) return clearLegacyCookie(error(401,'Oturumunuz sona erdi.'));
-      const response = await upstream('/auth/refresh-access-token',{
+      const response = await backend('/auth/refresh-access-token',{
         method:'POST',headers:{'X-Refresh-Token':token},
       });
       if(!response.ok) {
@@ -85,7 +101,7 @@ async function handle(request:NextRequest, context:Context) {
       });
     }
     const target = path === 'session/user' ? '/auth/users/me' : '/' + path + request.nextUrl.search;
-    const response = await upstream(target,init);
+    const response = await backend(target,init);
     let body = await response.json().catch(()=>({detail:'Sunucudan geçerli yanıt alınamadı.'}));
     if(path === 'session/user' && response.ok) {
       const {username,full_name,email} = body;

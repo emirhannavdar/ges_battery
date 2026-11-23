@@ -2,15 +2,12 @@ import logging
 import pathlib
 import string
 
-from datetime import datetime, timezone
 from typing import Annotated
-from uuid import UUID
-
 from fastapi import Depends, APIRouter, HTTPException, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from dotenv import load_dotenv
 from pydantic import BaseModel
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from fastapi.responses import JSONResponse
 from api.errors.exceptions import AuthenticationError
@@ -19,7 +16,6 @@ from database.database import get_db, get_user_db, get_user_by_email, get_user_d
 from hash.hash_pass import get_hashed_password, controle_hash_password
 from database.database import create_user_db
 from auth.roles import admin_require_roles, viewer_require_roles
-from sqlalchemy import text
 
 BASE_DIR = pathlib.Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / '.env')

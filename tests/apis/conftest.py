@@ -1,4 +1,5 @@
 import pytest
+import fakeredis
 
 from unittest.mock import patch
 from fastapi.testclient import TestClient
@@ -6,6 +7,11 @@ from api.api import app
 from auth.auth import get_current_user, get_current_active_user
 from auth.auth import User
 
+@pytest.fixture(autouse=True)
+def mock_redis():
+    fake_redis = fakeredis.FakeRedis(decode_responses=True)
+    with patch("auth.auth_request.redis_client", fake_redis):
+        yield fake_redis
 
 @pytest.fixture
 def authenticated_client():

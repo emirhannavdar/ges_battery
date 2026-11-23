@@ -1,8 +1,8 @@
+import os
+
 from pathlib import Path
 from typing import Final
-import os
 from dotenv import load_dotenv
-
 from dataclasses import dataclass
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -15,7 +15,12 @@ class Config:
 
     _EPIAS_BASE_URI: Final[str] = os.environ["_EPIAS_BASE_URI"]
 
+    # REDİS AYARLARI
     _REDIS_URL: Final[str] = os.getenv("_REDIS_URL")
+    _MAX_ATTEMPTS: Final[int] = 5
+    _BLOCK_DURATION: Final[int] = 300
+
+
     _TGT_URL: Final[str] = os.getenv("_TGT_URL")
 
     _PTF_ENDPOINT = os.getenv("_PTF_ENDPOINT")

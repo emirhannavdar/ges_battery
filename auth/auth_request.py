@@ -1,9 +1,10 @@
 import logging
 import pathlib
 import string
+import redis
 
 from typing import Annotated
-from fastapi import Depends, APIRouter, HTTPException, Response
+from fastapi import Depends, APIRouter, HTTPException, Response, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -16,11 +17,16 @@ from database.database import get_db, get_user_db, get_user_by_email, get_user_d
 from hash.hash_pass import get_hashed_password, controle_hash_password
 from database.database import create_user_db
 from auth.roles import admin_require_roles, viewer_require_roles
+from api.config.config import Config
 
 BASE_DIR = pathlib.Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / '.env')
 
 auth = APIRouter()
+
+redis_client = redis.Redis(host="localhost", port=6379, db=0, decode_responses=True)
+MAX_ATTEMPTS = Config._MAX_ATTEMPTS
+BLOCK_DURATION = Config._BLOCK_DURATION
 
 logger = logging.getLogger(__name__)
 sayac = 0
@@ -34,23 +40,37 @@ class SignUpForm(BaseModel):
 
 @auth.post("/token")
 async def login(
+        request: Request,
         response: Response,
         form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
         db: Annotated[Session, Depends(get_db)],
 
 ):
+    client_ip = request.client.host
+    redis_key = f"login_fail:{client_ip}:{form_data.username}"
+
+    attempts = redis_client.get(redis_key)
+    if attempts and int(attempts) >= MAX_ATTEMPTS:
+        kalan_sure = redis_client.ttl(redis_key)
+        logger.warning(f"Bloklu giriş denemesi: {form_data.username} ({client_ip}) - Kalan: {kalan_sure}sn")
+        return JSONResponse(
+            status_code=429,
+            content={
+                "error_description": f"Çok fazla hatalı giriş. {kalan_sure} saniye sonra tekrar deneyin."
+            }
+        )
+
+
     user_dict = get_user_db(db, form_data.username)
-    global sayac
 
     if not user_dict:
-        sayac += 1
-        if sayac > 5:
-            logger.info(f"{sayac} kere hatalı giriş yapıldı.")
+        current_attemps = redis_client.incr(redis_key)
+        if current_attemps == 1:
+            redis_client.expire(redis_key, BLOCK_DURATION)
+
         return JSONResponse(
             status_code=401,
-            content={
-                "error_description": "Kullanıcı bulunamadı",
-            }
+            content={"error_description": "Kullanıcı bulunamadı."}
         )
 
     user = UserInDB(**user_dict)
@@ -64,18 +84,26 @@ async def login(
         )
 
     if controle_hash_password(db, password=form_data.password, username=form_data.username) != True:
-        sayac += 1
-        if sayac > 5:
-            logger.info(f"{sayac} kere hatalı giriş yapıldı.")
+        current_attempts = redis_client.incr(redis_key)
+        if current_attempts == 1:
+            redis_client.expire(redis_key, BLOCK_DURATION)
 
+        if current_attempts>=MAX_ATTEMPTS:
+            logger.info(f"{current_attempts} kere hatalı giriş yapıldı, Kullanıcı bloklandı.")
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "error_description": f"Bloklandınız. {BLOCK_DURATION // 60} dakika sonra tekrar deneyiniz."
+                }
+            )
         return JSONResponse(
             status_code=401,
             content={
-                "error_description": "Şifre yanlış"
+                "error_description": "Şifre yanlış."
             }
         )
 
-    sayac = 0
+    redis_client.delete(redis_key)
 
     access_token = auth_client._jwt_token(
         user_id=user_dict["id"],
@@ -127,8 +155,7 @@ async def refresh_access_token(
     return {
         "username": user["username"],
         "access_token": access_token["token"],
-        "token_type": "bearer",
-        "jti-access_token": access_token["payload"]["jti"]
+        "token_type": "bearer"
     }
 
 

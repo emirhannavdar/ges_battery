@@ -72,7 +72,6 @@ class UserAuth:
             "iat": now,     # alış tarihi
             "nbf": now,     # token başlangıç arih
             "exp": now + expires, # ne kadar zaman geçerli
-            "jti": str(uuid4()),    # token'ın kimliği
             "iss": "bayraktarsolar",   # token'ı oluşturan sevişs
             "aud": "ges-api",   #tokenın kullanılacağı servis
             "type": token_type
@@ -103,8 +102,7 @@ class UserAuth:
                 issuer="bayraktarsolar",
                 options={
                     "require": [
-                        "sub", "exp", "iat", "nbf",
-                        "jti", "iss", "aud", "type"
+                        "sub", "exp", "iat", "nbf", "iss", "aud", "type"
                     ]
                 }
             )
@@ -166,8 +164,7 @@ class UserAuth:
                 issuer="bayraktarsolar",
                 options={
                     "require": [
-                        "sub", "exp", "iat", "nbf",
-                        "jti", "iss", "aud", "type"
+                        "sub", "exp", "iat", "nbf", "iss", "aud", "type"
                     ]
                 }
             )

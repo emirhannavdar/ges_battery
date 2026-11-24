@@ -8,14 +8,13 @@ from datetime import timedelta, datetime, timezone
 from typing import Annotated
 from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordBearer,APIKeyHeader
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from database.database import get_db
-from api.errors.exceptions import AuthenticationError, DomainError, ExternalServiceError
-from fastapi.security import APIKeyHeader
+from api.errors.exceptions import AuthenticationError, ExternalServiceError
 
 refresh_token_scheme = APIKeyHeader(
     name="X-Refresh-Token",

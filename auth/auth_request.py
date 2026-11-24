@@ -13,9 +13,8 @@ from sqlalchemy.orm import Session
 from fastapi.responses import JSONResponse
 from api.errors.exceptions import AuthenticationError
 from auth.auth import UserInDB, User, get_current_user, auth_client, get_current_active_user, refresh_token_scheme
-from database.database import get_db, get_user_db, get_user_by_email, get_user_db_full
+from database.database import get_db, get_user_db, get_user_by_email, get_user_db_full, create_user_db
 from hash.hash_pass import get_hashed_password, controle_hash_password
-from database.database import create_user_db
 from auth.roles import admin_require_roles, viewer_require_roles
 from api.config.config import Config
 
@@ -58,7 +57,6 @@ async def login(
                 "error_description": f"Çok fazla hatalı giriş. {kalan_sure} saniye sonra tekrar deneyin."
             }
         )
-
 
     user_dict = get_user_db(db, form_data.username)
 

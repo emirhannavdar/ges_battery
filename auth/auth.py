@@ -115,7 +115,8 @@ class UserAuth:
                 issuer="bayraktarsolar",
                 options={
                     "require": [
-                        "sub", "exp", "iat", "nbf", "iss", "aud", "type"
+                        "sub", "exp", "iat", "nbf",
+                        "iss", "aud", "type", "jti"
                     ]
                 }
             )

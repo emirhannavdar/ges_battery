@@ -4,8 +4,6 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-
-# revision identifiers, used by Alembic.
 revision: str = 'aaec19616318'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
@@ -21,12 +19,7 @@ def upgrade() -> None:
         sa.Column("email", sa.String(255), nullable=False),
         sa.Column("hashed_password", sa.Text(), nullable=False),
         sa.Column("disabled", sa.Boolean(), server_default=sa.false(), nullable=False),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("CURRENT_TIMESTAMP"),
-            nullable=False,
-        ),
+        sa.Column("created_at",sa.DateTime(timezone=True),server_default=sa.text("CURRENT_TIMESTAMP"),nullable=False,),
         sa.Column("is_operator", sa.Boolean(), server_default=sa.false(), nullable=False),
         sa.Column("role", sa.String(50), nullable=True),
         sa.Column("refresh_jti", sa.UUID(), nullable=True),
@@ -84,11 +77,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.PrimaryKeyConstraint("id", name="simulation_sessions_pkey"),
-        sa.ForeignKeyConstraint(
-            ["user_id"],
-            ["public.users.id"],
-            name="simulation_sessions_user_id_fkey",
-        ),
+        sa.ForeignKeyConstraint(["user_id"],["public.users.id"],name="simulation_sessions_user_id_fkey"),
         schema="public",
     )
     op.create_index(
@@ -139,17 +128,8 @@ def upgrade() -> None:
         sa.Column("curtailed_power_kw", sa.Double(), nullable=True),
         sa.Column("curtailed_energy_kwh", sa.Double(), nullable=True),
         sa.PrimaryKeyConstraint("id", name="simulation_hourly_results_pkey"),
-        sa.UniqueConstraint(
-            "simulation_id",
-            "hour",
-            name="simulation_hourly_results_simulation_id_hour_key",
-        ),
-        sa.ForeignKeyConstraint(
-            ["simulation_id"],
-            ["public.simulation_runs.id"],
-            name="simulation_hourly_results_simulation_id_fkey",
-            ondelete="CASCADE",
-        ),
+        sa.UniqueConstraint("simulation_id","hour",name="simulation_hourly_results_simulation_id_hour_key"),
+        sa.ForeignKeyConstraint(["simulation_id"],["public.simulation_runs.id"],name="simulation_hourly_results_simulation_id_fkey",ondelete="CASCADE"),
         schema="public",
     )
 

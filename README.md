@@ -1,194 +1,35 @@
 # GES Battery
 
-**Solar energy data integration, inverter simulation and monitoring-oriented software**
+GES Battery combines photovoltaic plant simulation, weather data and electricity market prices. A FastAPI backend and a Next.js dashboard let operators run daily scenarios, review hourly results and compare grid energy across saved runs.
 
-GES Battery is an actively developed full-stack project that combines electricity market prices, meteorological data and a stateful photovoltaic (PV) simulation engine. Its backend is built with FastAPI and PostgreSQL; a Next.js interface provides workflows for running and comparing daily simulations.
-
-> **Status:** Active development / prototype. The repository is not yet a production-ready SCADA or battery-management system. Calculated values are simulation outputs, not measurements from physical equipment. Some authentication, background-task and multi-site workflows still require hardening; see [Known limitations](#known-limitations-and-roadmap).
+The project is an active prototype. Simulation results are calculated from model inputs and weather data. The application currently models PV production, inverter control and transformer losses. Battery dispatch and revenue optimization are planned.
 
 ## Features
 
-- **EPİAŞ integration:** TGT-based authentication and PTF/KPTF electricity market data retrieval; PTF data persistence.
-- **Visual Crossing integration:** Weather data retrieval using latitude/longitude and database persistence.
-- **PV inverter simulation:** Irradiance- and temperature-dependent output, AC/DC limits, inverter state and injected fault scenarios.
-- **Power system components:** Energy analyzer, transformer and energy quality controller (EKK), including active-power limitation, reactive-power control and curtailment calculations.
-- **Stateful simulation sessions:** UUID-based sessions associated with an authenticated user; state serialization to PostgreSQL and row-level locking during updates.
-- **Daily simulation and comparison:** Run a 24-hour scenario, store hourly results, review previous runs and compare grid-energy outputs.
-- **Authentication and authorization:** JWT access/refresh tokens, password hashing and role-based access (`admin`, `operator`, `viewer`).
-- **Scheduled data collection:** Celery workers and Redis broker for EPİAŞ and weather ingestion tasks.
-- **Web interface:** Next.js dashboard for daily simulation, history, comparison and results.
+- **PV simulation:** Inverter output, temperature effects, active and reactive power limits, transformer losses and curtailment.
+- **Stateful sessions:** User-owned sessions with start, step, reset and inverter fault operations. Session state is stored in PostgreSQL.
+- **Daily scenarios:** Run a 24-hour simulation, save hourly results and compare scenarios in the dashboard.
+- **External data:** Retrieve EPİAŞ PTF and KPTF prices and Visual Crossing weather data. PTF and weather records can be stored in PostgreSQL.
+- **Authentication:** JWT access and refresh tokens, Argon2 password hashing, Redis-backed login rate limiting and role-based authorization.
+- **Database migrations:** Alembic initializes the PostgreSQL schema for users, weather, prices and simulation records.
 
 ## Technology stack
 
 | Layer | Technologies |
 | --- | --- |
-| Backend | Python 3.12+, FastAPI, Pydantic, Requests |
-| Persistence | PostgreSQL, SQLAlchemy, SQL queries |
-| Authentication | PyJWT (HS512), pwdlib/Argon2, role dependencies |
-| Cache and jobs | Redis, Celery, Celery Beat |
-| Simulation | Python-based inverter, analyzer, transformer and EKK models |
-| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS 4, ECharts, Zod |
+| Backend | Python 3.12+, FastAPI, Pydantic |
+| Database | PostgreSQL, SQLAlchemy, Psycopg 3, Alembic |
+| Jobs and caching | Redis, Celery, Celery Beat |
+| Frontend | Next.js, React, TypeScript, ECharts, Zod |
 | Tooling | uv, pytest, GitHub Actions, npm |
 
-## Architecture
-
-```text
-                    +-----------------------+
-                    | Next.js web dashboard |
-                    +-----------+-----------+
-                                |
-                                | HTTP / cookie-based session proxy
-                                v
-                    +-----------------------+
-                    | FastAPI REST backend  |
-                    +-----------+-----------+
-                                |
-             +------------------+------------------+
-             |                  |                  |
-             v                  v                  v
-       Auth / RBAC        External APIs      Simulation API
-       JWT tokens         EPİAŞ / Weather    UUID sessions
-             |                  |                  |
-             +------------------+------------------+
-                                |
-                                v
-                          PostgreSQL
-                    users / weather / prices
-                    simulation state / results
-
-        Celery Beat --> Redis broker --> Celery workers
-                                         |          |
-                                         v          v
-                                       EPİAŞ     Weather
-```
-
-The simulation engine is implemented separately from the HTTP layer. The API loads session state, runs the appropriate simulation operation and persists the updated state.
-
-## Repository layout
-
-```text
-.
-├── .github/workflows/       # GitHub Actions
-├── api/
-│   ├── api.py               # FastAPI application and router registration
-│   ├── config/              # Configuration and logging
-│   ├── endpoints/           # EPİAŞ, weather and simulation routes
-│   ├── errors/              # Application errors and handlers
-│   ├── response/            # API response models
-│   └── services/            # External API clients and token management
-├── auth/                    # JWT, authentication endpoints and RBAC
-├── database/                # SQLAlchemy connection and repositories
-├── frontend/                # Next.js application
-├── hash/                    # Password hashing
-├── simulation/              # Inverter, analyzer, transformer, EKK, clock
-├── tasks/                   # Celery application and collection tasks
-├── tests/                   # API and simulation tests
-├── pyproject.toml
-├── uv.lock
-└── README.md
-```
-
-## API overview
-
-All routes below are relative to the FastAPI server. Authentication is required for protected endpoints; access also depends on the user's role.
-
-### Authentication
-
-| Method | Route | Purpose |
-| --- | --- | --- |
-| `POST` | `/auth/token` | Log in and receive access/refresh tokens |
-| `POST` | `/auth/refresh-access-token` | Obtain a new access token from a refresh token |
-| `POST` | `/auth/sign` | Register a user (admin role required) |
-| `GET` | `/auth/users/me` | Read the authenticated user's profile |
-
-### External data
-
-| Method | Route | Purpose |
-| --- | --- | --- |
-| `POST` | `/api/v1/epias/token` | Request EPİAŞ TGT (currently returns raw token; see limitations) |
-| `POST` | `/api/v1/epias/PTF` | Retrieve and persist PTF data |
-| `POST` | `/api/v1/epias/KPTF` | Retrieve KPTF data |
-| `GET` | `/api/v1/visual_crossing` | Retrieve and store weather data |
-| `GET` | `/api/v1/visual_crossing/weather/full` | Retrieve detailed weather data |
-
-### Stateful inverter sessions
-
-These endpoints use a **UUID** `simulation_id`, and session operations are restricted to the owning user.
-
-| Method | Route | Purpose |
-| --- | --- | --- |
-| `POST` | `/inverter/sessions` | Create a session |
-| `GET` | `/inverter/sessions/{simulation_id}` | Read session metadata |
-| `POST` | `/inverter/sessions/{simulation_id}/start` | Start a created session |
-| `POST` | `/inverter/sessions/{simulation_id}/step` | Advance the simulation using stored weather data |
-| `POST` | `/inverter/sessions/{simulation_id}/reset` | Reset the session |
-| `POST` | `/inverter/sessions/{simulation_id}/fault` | Inject an inverter fault |
-| `POST` | `/inverter/sessions/{simulation_id}/fault/reset/{inverter_id}` | Clear an inverter fault |
-| `GET` | `/inverter/sessions/{simulation_id}/data` | Retrieve inverter data |
-
-Create a session with:
-
-```http
-POST /inverter/sessions
-Authorization: Bearer <ACCESS_TOKEN>
-Content-Type: application/json
-
-{"inverter_count": 3}
-```
-
-A successful creation returns `201 Created` and a `simulation_id`. Use that UUID in subsequent session requests. For a step request, the body includes `hangi_gun`, `saat_kac` and `dt_seconds`:
-
-```json
-{
-  "hangi_gun": "2026-11-23",
-  "saat_kac": "11:00:00",
-  "dt_seconds": 3600
-}
-```
-
-The requested weather record must exist in the database. The session must be started before it can be stepped forward.
-
-### Daily simulations and saved history
-
-The **daily history ID is an integer**, distinct from the UUID used for stateful sessions.
-
-| Method | Route | Purpose |
-| --- | --- | --- |
-| `POST` | `/inverter/daily` | Run and persist a daily scenario |
-| `GET` | `/inverter/simulations` | List the current user's saved daily runs |
-| `GET` | `/inverter/simulations/{simulation_id}` | Get a saved daily run by integer ID |
-| `GET` | `/inverter/simulations/compare` | Compare two saved daily runs |
-
-Example daily request:
-
-```json
-{
-  "simulation_date": "2026-11-23",
-  "inverter_count": 3,
-  "inverter_ac_rated_kw": 900,
-  "inverter_dc_rated_kw": 1000,
-  "ekk_active_power_limit_kw": 800
-}
-```
-
-A daily simulation requires a complete set of 24 hourly weather records for the requested date. To compare two saved runs, call:
-
-```http
-GET /inverter/simulations/compare?simulation_id_1=1&simulation_id_2=2
-Authorization: Bearer <ACCESS_TOKEN>
-```
+The browser calls the Next.js server, which forwards API requests to FastAPI. FastAPI runs simulations and reads and writes PostgreSQL data. Redis supports login rate limiting, EPİAŞ token caching and the Celery broker.
 
 ## Local development
 
-### Requirements
+### 1. Install dependencies
 
-- Python 3.12 or newer and [uv](https://docs.astral.sh/uv/)
-- PostgreSQL
-- Redis (for token caching and Celery)
-- Node.js and npm (for the frontend)
-- EPİAŞ and Visual Crossing credentials for real external API calls
-
-### 1. Clone and install backend dependencies
+Install Python 3.12+, [uv](https://docs.astral.sh/uv/), PostgreSQL, Redis and a Node.js version supported by the frontend.
 
 ```powershell
 git clone https://github.com/emirhannavdar/ges_battery.git
@@ -196,13 +37,13 @@ cd ges_battery
 uv sync --frozen
 ```
 
-### 2. Configure environment variables
+### 2. Configure the backend
 
-Create a `.env` file in the project root. Use your own credentials and connection details:
+Create a PostgreSQL database and add a `.env` file at the repository root. Replace the placeholders with your own settings. If your PostgreSQL instance listens on `5433`, use that port in `_DATABASE_URL`.
 
 ```dotenv
-_DATABASE_URL=postgresql+psycopg2://USER:PASSWORD@127.0.0.1:5432/DATABASE
-_REDIS_URL=redis://127.0.0.1:6379/0
+_DATABASE_URL=postgresql+psycopg://USER:PASSWORD@127.0.0.1:5432/DATABASE
+_REDIS_URL=redis://localhost:6379/0
 
 _VISUAL_CROSSING_API_KEY=YOUR_KEY
 _VISUAL_CROSSING_BASE_URI=YOUR_VISUAL_CROSSING_BASE_URL
@@ -219,19 +60,37 @@ _XSECRET_KEY_1=YOUR_PREVIOUS_JWT_SIGNING_SECRET
 _XSECRET_KEY_2=YOUR_ACTIVE_JWT_SIGNING_SECRET
 ```
 
-**Important:** The database URL is an example, not a provisioned database. The repository does not currently provide a complete schema migration/bootstrap process. Create the required PostgreSQL tables (`users`, `weather_data`, `simulation_sessions`, daily simulation tables and EPİAŞ price tables) according to the application SQL before using database-backed endpoints. Ensure the appropriate PostgreSQL driver is installed for your chosen URL; add it to project dependencies if needed.
+Start Redis before using the login endpoint. The login rate limiter currently connects to `localhost:6379`. EPİAŞ and Celery use `_REDIS_URL`. Keep `.env`, credentials and signing keys out of Git.
 
-Do not commit `.env`, credentials, signing secrets or actual tokens to Git.
+### 3. Apply database migrations
 
-### 3. Start the backend
+For a newly created, empty database, run this from the repository root:
 
 ```powershell
-uv run uvicorn api.api:app --reload --host 127.0.0.1 --port 8000
+uv run alembic upgrade head
 ```
 
-API documentation: `http://127.0.0.1:8000/docs`
+For a database created manually before Alembic was introduced, back it up and compare the existing schema with the initial migration before recording a baseline. The initial migration creates the application tables.
 
-### 4. Start the frontend
+On a fresh database, provision the first admin through a trusted local terminal. The following PowerShell example prompts for the password without echoing it and uses the application's own password hashing and user creation functions:
+
+```powershell
+uv run python -c "from getpass import getpass; from database.database import SessionLocal, create_user_db; from hash.hash_pass import get_hashed_password; username=input('Username: '); full_name=input('Full name: '); email=input('Email: '); password=getpass('Password: '); assert password, 'Password is required'; db=SessionLocal(); create_user_db(db, username=username, full_name=full_name, email=email, hashed_password=get_hashed_password(password), role='admin'); db.close()"
+```
+
+After signing in as admin, use `POST /auth/sign` to create additional accounts.
+
+### 4. Start FastAPI
+
+```powershell
+uv run uvicorn api.api:app --reload --host 127.0.0.1 --port 8071
+```
+
+Swagger UI is available at [http://127.0.0.1:8071/docs](http://127.0.0.1:8071/docs).
+
+### 5. Start the dashboard
+
+In a second terminal:
 
 ```powershell
 cd frontend
@@ -240,19 +99,52 @@ Copy-Item .env.example .env.local
 npm run dev
 ```
 
-The frontend's default `BACKEND_URL` is `http://127.0.0.1:8000`. The local web app is available at `http://localhost:3000`.
+Open [http://localhost:3000](http://localhost:3000). The example `BACKEND_URL` points to `http://127.0.0.1:8071`. If you use a different port, update `frontend/.env.local` to match.
 
-Optional frontend checks:
+## API overview
 
-```powershell
-npm run typecheck
-npm run lint
-npm run build
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `POST` | `/auth/token` | Sign in and receive access and refresh tokens |
+| `POST` | `/auth/refresh-access-token` | Renew the access token using `X-Refresh-Token` |
+| `GET` | `/auth/users/me` | Read the current user's profile |
+| `POST` | `/auth/sign` | Create a user as an admin |
+| `POST` | `/api/v1/epias/PTF` | Retrieve and persist PTF prices |
+| `POST` | `/api/v1/epias/KPTF` | Retrieve KPTF data |
+| `GET` | `/api/v1/visual_crossing` | Retrieve and store weather data |
+| `POST` | `/inverter/sessions` | Create a stateful simulation session |
+| `POST` | `/inverter/sessions/{simulation_id}/start` | Start a simulation session |
+| `POST` | `/inverter/sessions/{simulation_id}/step` | Advance a session using stored weather |
+| `POST` | `/inverter/daily` | Run and save a daily scenario |
+| `GET` | `/inverter/simulations` | List saved daily scenarios |
+| `GET` | `/inverter/simulations/{simulation_id}` | Read a saved run and its hourly results |
+| `GET` | `/inverter/simulations/compare` | Compare two saved runs |
+
+Stateful sessions use UUIDs. Saved daily runs use integer IDs. Daily simulation requires a complete set of hourly weather records for the selected date.
+
+Example body for `POST /inverter/daily`:
+
+```json
+{
+  "simulation_date": "2026-11-23",
+  "inverter_count": 3,
+  "inverter_ac_rated_kw": 900,
+  "inverter_dc_rated_kw": 1000,
+  "ekk_active_power_limit_kw": 800
+}
 ```
 
-### 5. Run background workers (optional)
+## Authentication and sessions
 
-Start Redis and run Celery worker and scheduler in separate terminals:
+Access tokens expire after 15 minutes. Refresh tokens expire after 7 days and are checked against the current refresh `jti` stored for the user. A new login replaces that identifier. Users with refresh tokens issued before `jti` became mandatory should sign in again.
+
+The dashboard keeps the access token in memory and the refresh token in an HTTP-only cookie. After a reload or an expired access token, the browser calls `/api/session/refresh` on Next.js. The server reads the cookie and forwards the refresh token to FastAPI.
+
+Logout clears the browser session. Server-side refresh token revocation on logout and rotation on each refresh are planned.
+
+## Background jobs
+
+Celery uses Redis as its broker. Run the worker and scheduler from the repository root in separate terminals:
 
 ```powershell
 uv run celery -A tasks.celery_app:celery_app worker --loglevel=info --pool=solo
@@ -262,54 +154,34 @@ uv run celery -A tasks.celery_app:celery_app worker --loglevel=info --pool=solo
 uv run celery -A tasks.celery_app:celery_app beat --loglevel=info
 ```
 
-The current Beat configuration schedules EPİAŞ collection daily at **14:10 Europe/Istanbul** and weather collection every **two weeks**. The EPİAŞ task currently needs its `OOP_Epias` token-manager dependency fixed before it can run successfully.
+Beat schedules EPİAŞ collection daily at 14:10 Europe/Istanbul and weather collection every two weeks. The scheduled EPİAŞ task still needs its token manager wired into the client constructor.
 
-## Testing and CI
+## Tests
 
-Run the Python test suite:
+Run the Python tests from the repository root:
 
 ```powershell
 uv run python -m pytest -v
 ```
 
-Run only the inverter-related tests:
+Run the frontend checks from `frontend`:
 
 ```powershell
-uv run python -m pytest tests/inverter -v
+npm run typecheck
+npm run lint
+npm run build
 ```
 
-GitHub Actions executes pytest on pushes and pull requests targeting `main`. Its current test environment uses mock credentials and a placeholder Redis URL; it does **not** provision a real PostgreSQL/Redis integration environment. Passing unit tests should not be treated as proof that the production database and background workers are configured correctly.
+GitHub Actions runs the Python suite with test configuration. Applying migrations and running an end-to-end smoke test against PostgreSQL and Redis remain separate verification steps.
 
-## Security model
+## Roadmap
 
-- Protected API routes use bearer-token authentication and role dependencies.
-- Access tokens expire after **15 minutes**; refresh tokens after **7 days**.
-- JWT verification checks signature, issuer, audience, expiration, required claims and token type.
-- Passwords are verified through the project's password hashing layer.
-- The Next.js server stores the access token in an HTTP-only session cookie.
-
-**Current limitations:** Token `jti` values are generated but are not yet enforced as a revocation/rotation mechanism. The frontend logout clears the cookie without server-side token revocation. Refresh-token replay protection and login rate limiting should be implemented before production use. The frontend cookie lifetime is currently 30 minutes, longer than the 15-minute access-token lifetime.
-
-## Known limitations and roadmap
-
-The following are known development items, not completed capabilities:
-
-1. **Celery EPİAŞ collection:** Pass a valid token manager to `OOP_Epias` and align the scheduled task with the API token flow.
-2. **Token lifecycle:** Add refresh-token rotation, `jti` verification, revocation, account-disabled checks and a server-side logout mechanism.
-3. **Multi-site weather data:** Bind coordinates to actual locations and filter simulation weather queries by `location_id`; the current weather ingestion uses `location_id=1`.
-4. **Database migrations:** Add Alembic and documented schema creation/update steps.
-5. **EPİAŞ token exposure:** Stop returning the raw TGT value from the public API response.
-6. **Frontend session integration:** Extend the frontend API proxy and UI to use the new UUID-based session routes if interactive session management is required.
-7. **Infrastructure checks:** Add realistic PostgreSQL/Redis integration checks, deployment configuration and monitoring.
-8. **Configuration validation:** Fail clearly on missing or invalid environment settings; remove obsolete token helper methods.
-9. **Simulation validation:** Calibrate physical models and controller behavior against measured field data before making operational decisions from simulation outputs.
-
-## Project scope
-
-GES Battery is a software and simulation project for learning, experimentation and future energy-monitoring integrations. It does not currently claim to be a certified inverter controller, production SCADA system or battery digital twin. Integrating real field telemetry and equipment-specific protocols requires additional validation and engineering.
+- Isolate weather records and simulation inputs by site.
+- Verify fresh database setup and the login-to-simulation flow in CI.
+- Expose transformer overload duration in daily scenario results.
+- Match hourly grid energy with EPİAŞ PTF for revenue estimates.
+- Compare scenarios with and without a battery.
 
 ## Author
 
-Developed by [Emirhan Navdar](https://github.com/emirhannavdar).
-
-Repository: [github.com/emirhannavdar/ges_battery](https://github.com/emirhannavdar/ges_battery)
+[Emirhan Navdar](https://github.com/emirhannavdar)

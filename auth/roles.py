@@ -11,18 +11,12 @@ def require_roles(*allowed_roles: str):
         user: User = Depends(get_current_active_user),
         db: Session = Depends(get_db)
     ):
-        user_role = get_user_role(
-            db,
-            user.username,
-            user.email
-        )
-
-        if not user_role:
+        if not user.role:
             raise ForbiddenError(
                 "Kullanıcıya ait rol bilgisi bulunamadı."
             )
 
-        if user_role["role"] not in allowed_roles:
+        if user.role not in allowed_roles:
             raise ForbiddenError(
                 "Bu işlem için yeterli yetkiniz bulunmuyor."
             )

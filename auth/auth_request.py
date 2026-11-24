@@ -105,12 +105,14 @@ async def login(
     redis_client.delete(redis_key)
 
     access_token = auth_client._jwt_token(
+        db,
         user_id=user_dict["id"],
         role=user_dict["role"],
         token_type="access"
     )
 
     refresh_token = auth_client._jwt_token(
+        db,
         user_id=user_dict["id"],
         role=user_dict["role"],
         token_type="refresh"
@@ -145,10 +147,17 @@ async def refresh_access_token(
     if not user:
         raise AuthenticationError("Kullanıcı bulunamadı. Yönetici ile iletişime geçiniz.")
 
-    if user.disabled:
+    if user["disabled"]:
         raise AuthenticationError("Kullanıcı aktif değil. Yönetici ile iletişime geçiniz.")
 
+    db_jti = str(user["refresh_jti"]).strip() if user.get("refresh_jti") else ""
+    payload_jti = str(payload.get("jti", "")).strip()
+
+    if db_jti != payload_jti:
+        raise AuthenticationError("Geçersiz veya süresi dolmuş refresh token.")
+
     access_token = auth_client._jwt_token(
+        db,
         user_id=user["id"],
         role=user["role"],
         token_type="access"

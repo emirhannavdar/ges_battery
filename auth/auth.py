@@ -7,14 +7,14 @@ from uuid import uuid4, UUID
 from datetime import timedelta, datetime, timezone
 from typing import Annotated
 from dotenv import load_dotenv
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from database.database import get_db
-from api.errors.exceptions import AuthenticationError, DomainError
+from api.errors.exceptions import AuthenticationError, DomainError, ExternalServiceError
 from fastapi.security import APIKeyHeader
 
 refresh_token_scheme = APIKeyHeader(
@@ -51,6 +51,7 @@ class UserAuth:
 
     def _jwt_token(
             self,
+            db: Session,
             user_id: int,
             role: str,
             token_type: str = "access"
@@ -72,6 +73,7 @@ class UserAuth:
             "iat": now,     # alış tarihi
             "nbf": now,     # token başlangıç arih
             "exp": now + expires, # ne kadar zaman geçerli
+            "jti": str(uuid4()),
             "iss": "bayraktarsolar",   # token'ı oluşturan sevişs
             "aud": "ges-api",   #tokenın kullanılacağı servis
             "type": token_type
@@ -84,6 +86,18 @@ class UserAuth:
             headers={"kid": _ACTIVE_KEY_ID}
         )
 
+        if token_type == "refresh":
+            db.execute(
+                text("""
+                    UPDATE users
+                    SET refresh_jti = :refresh_jti
+                    WHERE id = :id                
+                """), {
+                    "refresh_jti": payload["jti"],
+                    "id": payload["sub"]
+                }
+            )
+            db.commit()
         return {"token": token, "payload": payload}
 
     def _decode_refresh_token(self, token: str) -> dict:
@@ -176,20 +190,28 @@ class UserAuth:
 
         except jwt.ExpiredSignatureError:
             logger.warning("JWT süresi dolmuş.")
-            return None
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token süresi dolmuş.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         except (jwt.InvalidTokenError, ValueError) as exc:
             logger.warning(
                 "JWT doğrulama hatası: %s",
                 type(exc).__name__
             )
-            return None
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Geçersiz token.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
 
     async def authenticate_user(self, token: str, db: Session):
         payload = self.__decode_token(token)
 
         if payload is None:
-            raise AuthenticationError("geçersiz veya süresi dolmuş token.")
+            raise ExternalServiceError("geçersiz veya süresi dolmuş token.")
 
         user_id = payload.get("sub")
 
@@ -203,7 +225,7 @@ class UserAuth:
         user = self.__get_user(db, user_id)
 
         if user is None:
-            raise DomainError("Kullanıcı bulunamadı.")
+            raise AuthenticationError("Kullanıcı bulunamadı.")
 
         if user.disabled:
             raise AuthenticationError("Kullancı aktif değil")

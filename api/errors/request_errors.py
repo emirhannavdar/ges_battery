@@ -19,6 +19,9 @@ def handle_request_error(error: requests.exceptions.RequestException,service_nam
         elif status_code == 404:
             message = f"{service_name} endpoint bulunamadı."
         elif status_code == 429:
+            print("*************************************")
+            print("BURDASIN KARDEŞ BURDASIN")
+            print("*************************************")
             message = f"{service_name} istek limitine ulaşıldı."
         elif status_code is not None and status_code >= 500:
             message = f"{service_name} sunucu hatası."
@@ -37,4 +40,7 @@ def handle_request_error(error: requests.exceptions.RequestException,service_nam
         exc_info=True,      # hatasının traceback bilgisi
     )
 
-    raise ExternalServiceError(message=message) from error
+    if isinstance(error, BaseException):
+        raise ExternalServiceError(message=message) from error
+    else:
+        raise ExternalServiceError(message=message)

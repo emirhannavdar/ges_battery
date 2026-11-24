@@ -3,15 +3,13 @@ import logging
 
 from fastapi import APIRouter, Query, Depends
 from sqlalchemy.orm import Session
-
 from api.services.epias import OOP_Epias, get_epias_client
 from api.services.epias_params import EpiasTGTToken
 from api.errors.exceptions import AuthenticationError
 from api.errors.request_errors import handle_request_error
 from api.response.response import _RestApi
 from api.response.epias_response_model import PTFData, KPTFData
-from auth.auth import User, get_current_user
-from auth.auth import get_current_active_user
+from auth.auth import User, get_current_user, get_current_active_user
 from database.database import get_db
 from database.epias_ptf_db import save_epias_pt_data
 from auth.roles import admin_require_roles, operator_require_roles

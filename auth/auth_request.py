@@ -29,7 +29,6 @@ MAX_ATTEMPTS = Config._MAX_ATTEMPTS
 BLOCK_DURATION = Config._BLOCK_DURATION
 
 logger = logging.getLogger(__name__)
-sayac = 0
 
 class SignUpForm(BaseModel):
     username: str
@@ -136,15 +135,18 @@ async def refresh_access_token(
 
     payload = auth_client._decode_refresh_token(refresh_token)
 
-    if not refresh_token:
-        raise AuthenticationError("Refresh token bulunamadı")
-
     try:
         user_id = int(payload["sub"])
     except (ValueError, TypeError, KeyError):
         raise AuthenticationError("Geçersiz kullanıcı.")
 
     user = get_user_db_full(db, user_id)
+
+    if not user:
+        raise AuthenticationError("Kullanıcı bulunamadı. Yönetici ile iletişime geçiniz.")
+
+    if user.disabled:
+        raise AuthenticationError("Kullanıcı aktif değil. Yönetici ile iletişime geçiniz.")
 
     access_token = auth_client._jwt_token(
         user_id=user["id"],

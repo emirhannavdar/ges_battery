@@ -20,7 +20,7 @@ async function refreshAccessToken() {
   if(refreshPromise) return refreshPromise;
   const generation = sessionGeneration;
   const pending = (async()=>{
-    const response = await fetch('/auth/refresh-access-token',{
+    const response = await fetch('/api/session/refresh',{
       method:'POST',credentials:'same-origin',cache:'no-store',
     });
     if(generation !== sessionGeneration) throw new Error('Oturum değişti. Lütfen tekrar deneyin.');

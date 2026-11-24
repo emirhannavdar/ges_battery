@@ -1,3 +1,5 @@
+# jti boş gelirse veya refresh token yoksa adımlarını kontrol et
+
 import logging
 import pathlib
 import string

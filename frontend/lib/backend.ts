@@ -12,7 +12,7 @@ export function tokenLifetime(token:string, fallback:number) {
 }
 
 export async function upstream(path:string, init:RequestInit = {}) {
-  return fetch((process.env.BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '') + path,{
+  return fetch((process.env.BACKEND_URL || 'http://127.0.0.1:8071').replace(/\/$/, '') + path,{
     ...init,cache:'no-store',redirect:'error',signal:AbortSignal.timeout(120000),
   });
 }

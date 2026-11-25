@@ -17,8 +17,8 @@ class Config:
 
     # REDİS AYARLARI
     _REDIS_URL: Final[str] = os.getenv("_REDIS_URL")
-    _MAX_ATTEMPTS: Final[int] = 5
-    _BLOCK_DURATION: Final[int] = 300
+    _MAX_ATTEMPTS: Final[int] = os.getenv("_MAX_ATTEMPTS")
+    _BLOCK_DURATION: Final[int] = os.getenv("_BLOCK_DURATION")
 
 
     _TGT_URL: Final[str] = os.getenv("_TGT_URL")

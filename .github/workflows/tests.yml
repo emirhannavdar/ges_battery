@@ -39,5 +39,7 @@ jobs:
           _SECRET_KEY: "test-value"
           _XSECRET_KEY_1: "test-value"
           _XSECRET_KEY_2: "test-value"
+          _MAX_ATTEMPTS: 9
+          _BLOCK_DURATION: 500
 
         run: uv run python -m pytest -v

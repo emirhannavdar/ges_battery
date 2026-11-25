@@ -85,7 +85,7 @@ async def login(
         if current_attempts == 1:
             redis_client.expire(redis_key, BLOCK_DURATION)
 
-        if current_attempts>=MAX_ATTEMPTS:
+        if str(current_attempts)>=MAX_ATTEMPTS:
             logger.info(f"{current_attempts} kere hatalı giriş yapıldı, Kullanıcı bloklandı.")
             return JSONResponse(
                 status_code=429,

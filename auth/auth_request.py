@@ -48,7 +48,8 @@ async def login(
     redis_key = f"login_fail:{client_ip}:{form_data.username}"
 
     attempts = redis_client.get(redis_key)
-    if attempts and int(attempts) >= MAX_ATTEMPTS:
+
+    if attempts and attempts >= MAX_ATTEMPTS:
         kalan_sure = redis_client.ttl(redis_key)
         logger.warning(f"Bloklu giriş denemesi: {form_data.username} ({client_ip}) - Kalan: {kalan_sure}sn")
         return JSONResponse(
@@ -84,6 +85,8 @@ async def login(
         current_attempts = redis_client.incr(redis_key)
         if current_attempts == 1:
             redis_client.expire(redis_key, BLOCK_DURATION)
+
+        # str() olmaması lazım diğer taraflar hata veriyor
 
         if str(current_attempts)>=MAX_ATTEMPTS:
             logger.info(f"{current_attempts} kere hatalı giriş yapıldı, Kullanıcı bloklandı.")

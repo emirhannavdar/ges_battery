@@ -25,7 +25,7 @@ auth = APIRouter()
 
 redis_client = redis.Redis(host="localhost", port=6379, db=0, decode_responses=True)
 MAX_ATTEMPTS = Config._MAX_ATTEMPTS
-BLOCK_DURATION = Config._BLOCK_DURATION
+BLOCK_DURATION = int(Config._BLOCK_DURATION)
 
 logger = logging.getLogger(__name__)
 

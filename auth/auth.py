@@ -61,7 +61,7 @@ class UserAuth:
             raise ValueError("Geçersiz token türü.")
 
         expires = (
-            timedelta(minutes=1)
+            timedelta(minutes=15)
             if token_type == "access"
             else timedelta(days=7)
         )
